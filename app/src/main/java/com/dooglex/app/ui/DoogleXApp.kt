@@ -185,9 +185,7 @@ fun DoogleXApp(
                     onDohEnabledChange = onDohEnabledChange,
                     onDohProviderChange = onDohProviderChange,
                     onClearHistory = onClearHistory,
-                    onOpenPrivacyPolicy = {
-                        openWebsite(context, "https://duckduckgo.com/privacy")
-                    },
+                    onOpenPrivacyPolicy = { url -> openWebsite(context, url) },
                 )
             }
         }
@@ -445,7 +443,7 @@ private fun NativeBadge(dohEnabled: Boolean) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = if (dohEnabled) "HTTPS + DOH · ПРИВАТНО" else "HTTPS · ПРИВАТНО",
+                text = if (dohEnabled) "HTTPS + DOH · DOOGLEX META" else "HTTPS · DOOGLEX META",
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.labelSmall,
@@ -627,7 +625,7 @@ private fun NativePrivacyCard() {
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Text(
-                text = "Выдачу предоставляет DuckDuckGo. При поиске применяется его политика конфиденциальности.",
+                text = "DoogleX Meta сам объединяет и ранжирует результаты. Запросы отправляются в Mojeek, Wikipedia и GitHub; DuckDuckGo не используется.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -687,7 +685,7 @@ private fun SearchResultsScreen(
                 } else {
                     item {
                         Text(
-                            text = "${formatResultCount(searchState.results.size)} · DuckDuckGo · HTTPS",
+                            text = "${formatResultCount(searchState.results.size)} · DoogleX Meta · HTTPS",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp),
@@ -858,6 +856,16 @@ private fun ResultCard(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(16.dp),
                 )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = result.source,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -1025,7 +1033,7 @@ private fun SettingsScreen(
     onDohEnabledChange: (Boolean) -> Unit,
     onDohProviderChange: (DohProvider) -> Unit,
     onClearHistory: () -> Unit,
-    onOpenPrivacyPolicy: () -> Unit,
+    onOpenPrivacyPolicy: (String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -1200,22 +1208,50 @@ private fun SettingsScreen(
 
         item {
             SettingsSection(title = "О приложении") {
-                InfoRow(label = "Версия", value = "1.4.0")
-                InfoRow(label = "Источник выдачи", value = "DuckDuckGo")
-                TextButton(
+                InfoRow(label = "Версия", value = "1.5.0")
+                InfoRow(label = "Поиск", value = "DoogleX Meta")
+                Text(
+                    "Собственное ранжирование результатов Mojeek, Wikipedia и GitHub. Это метапоиск, а не собственный индекс интернета.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SourcePrivacyLink(
+                    label = "Конфиденциальность Mojeek",
+                    url = "https://www.mojeek.com/about/privacy/",
                     onClick = onOpenPrivacyPolicy,
-                    contentPadding = PaddingValues(0.dp),
-                ) {
-                    Text("Политика конфиденциальности источника")
-                    Spacer(Modifier.width(5.dp))
-                    Icon(
-                        Icons.Outlined.OpenInNew,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
+                )
+                SourcePrivacyLink(
+                    label = "Конфиденциальность Wikimedia",
+                    url = "https://foundation.wikimedia.org/wiki/Privacy_policy",
+                    onClick = onOpenPrivacyPolicy,
+                )
+                SourcePrivacyLink(
+                    label = "Конфиденциальность GitHub",
+                    url = "https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement",
+                    onClick = onOpenPrivacyPolicy,
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun SourcePrivacyLink(
+    label: String,
+    url: String,
+    onClick: (String) -> Unit,
+) {
+    TextButton(
+        onClick = { onClick(url) },
+        contentPadding = PaddingValues(0.dp),
+    ) {
+        Text(label, maxLines = 2)
+        Spacer(Modifier.width(5.dp))
+        Icon(
+            Icons.Outlined.OpenInNew,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+        )
     }
 }
 

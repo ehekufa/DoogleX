@@ -5,6 +5,7 @@ data class SearchResult(
     val url: String,
     val domain: String,
     val snippet: String,
+    val source: String = "Веб",
 )
 
 enum class ThemeMode {

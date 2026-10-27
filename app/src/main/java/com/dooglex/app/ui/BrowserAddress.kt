@@ -4,7 +4,7 @@ import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
-/** Resolves a browser omnibox value to an HTTPS page or a DuckDuckGo search. */
+/** Resolves a browser omnibox value to an HTTPS page or a Mojeek web search. */
 internal object BrowserAddress {
     private val explicitScheme = Regex("^([A-Za-z][A-Za-z0-9+.-]*)://")
 
@@ -38,7 +38,7 @@ internal object BrowserAddress {
         if (explicitScheme.containsMatchIn(value)) return null
 
         val query = URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
-        return "https://duckduckgo.com/?q=$query"
+        return "https://www.mojeek.com/search?q=$query"
     }
 
     private fun String.looksLikeAddress(): Boolean =

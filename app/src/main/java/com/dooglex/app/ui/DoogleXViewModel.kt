@@ -3,7 +3,7 @@ package com.dooglex.app.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.dooglex.app.data.DuckDuckGoSearchRepository
+import com.dooglex.app.data.DoogleXMetaSearchRepository
 import com.dooglex.app.data.PreferencesStore
 import com.dooglex.app.model.AccentPalette
 import com.dooglex.app.model.AppTab
@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class DoogleXViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = DuckDuckGoSearchRepository()
+    private val repository = DoogleXMetaSearchRepository()
     private val preferencesStore = PreferencesStore(application.applicationContext)
     private val mutableUiState = MutableStateFlow(DoogleXUiState())
     private var searchJob: Job? = null

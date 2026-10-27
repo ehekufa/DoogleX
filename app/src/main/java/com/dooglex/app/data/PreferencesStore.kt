@@ -196,7 +196,8 @@ class PreferencesStore(private val context: Context) {
                         .put("title", result.title)
                         .put("url", result.url)
                         .put("domain", result.domain)
-                        .put("snippet", result.snippet),
+                        .put("snippet", result.snippet)
+                        .put("source", result.source),
                 )
             }
         }
@@ -228,6 +229,7 @@ class PreferencesStore(private val context: Context) {
                         url = url,
                         domain = item.optString("domain"),
                         snippet = item.optString("snippet"),
+                        source = item.optString("source").ifBlank { "Веб" },
                     ),
                 )
             }
