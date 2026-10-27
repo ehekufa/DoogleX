@@ -80,6 +80,14 @@ class DoogleXMetaSearchRepository {
         googleSearchEngineId: String = "",
     ): MetaSearchResponse = withContext(Dispatchers.IO) {
         val client = if (useDoh) dohClient(dohProvider) else systemDnsClient
+        val duckDuckGo = async {
+            fetchSource {
+                MetaSourceResults(
+                    MetaSource.DUCKDUCKGO,
+                    fetchDuckDuckGo(client, query, safeSearch),
+                )
+            }
+        }
         val mojeek = async {
             fetchSource { MetaSourceResults(MetaSource.MOJEEK, fetchMojeek(client, query, safeSearch)) }
         }
@@ -106,6 +114,7 @@ class DoogleXMetaSearchRepository {
 
         val googleResult = google?.await()
         val sources = listOfNotNull(
+            duckDuckGo.await(),
             googleResult?.sourceResults,
             mojeek.await(),
             wikipedia.await(),
@@ -155,6 +164,18 @@ class DoogleXMetaSearchRepository {
     } catch (_: Exception) {
         // A captcha, rate limit or network failure in one source must not hide other results.
         null
+    }
+
+    private fun fetchDuckDuckGo(
+        client: OkHttpClient,
+        query: String,
+        safeSearch: Boolean,
+    ): List<SearchResult> {
+        val url = DUCKDUCKGO_ENDPOINT.newBuilder()
+            .addQueryParameter("q", query)
+            .addQueryParameter("kp", if (safeSearch) "1" else "-2")
+            .build()
+        return fetch(client, url, "text/html", DuckDuckGoParser::parse)
     }
 
     private fun fetchMojeek(
@@ -260,15 +281,17 @@ class DoogleXMetaSearchRepository {
     }
 
     private companion object {
+        val DUCKDUCKGO_ENDPOINT = "https://html.duckduckgo.com/html/".toHttpUrl()
         val GOOGLE_ENDPOINT = "https://customsearch.googleapis.com/customsearch/v1".toHttpUrl()
         val MOJEEK_ENDPOINT = "https://www.mojeek.com/search".toHttpUrl()
         val WIKIPEDIA_ENDPOINT = "https://ru.wikipedia.org/w/api.php".toHttpUrl()
         val GITHUB_ENDPOINT = "https://api.github.com/search/repositories".toHttpUrl()
-        const val USER_AGENT = "DoogleX/1.6 (Android; metasearch client)"
+        const val USER_AGENT = "DoogleX/1.7 (Android; metasearch client)"
     }
 }
 
 internal enum class MetaSource(val displayName: String, val weight: Double) {
+    DUCKDUCKGO("DuckDuckGo", 34.0),
     GOOGLE("Google", 30.0),
     MOJEEK("Mojeek", 26.0),
     WIKIPEDIA("Wikipedia", 20.0),
@@ -279,6 +302,28 @@ internal data class MetaSourceResults(
     val source: MetaSource,
     val results: List<SearchResult>,
 )
+
+internal object DuckDuckGoParser {
+    fun parse(html: String, requestUrl: HttpUrl): List<SearchResult> {
+        if (html.contains("anomaly-modal", ignoreCase = true) ||
+            html.contains("captcha", ignoreCase = true)
+        ) {
+            throw SearchUnavailableException("DuckDuckGo временно ограничил запросы")
+        }
+        val document = Jsoup.parse(html, requestUrl.toString())
+        return document.select(".result").mapNotNull { element ->
+            val anchor = element.selectFirst("a.result__a") ?: return@mapNotNull null
+            val resolved = requestUrl.resolve(anchor.attr("href")) ?: return@mapNotNull null
+            val resultUrl = resolved.queryParameter("uddg") ?: resolved.toString()
+            createWebResult(
+                title = anchor.text().trim(),
+                url = resultUrl,
+                snippet = element.selectFirst(".result__snippet")?.text()?.trim().orEmpty(),
+                source = MetaSource.DUCKDUCKGO.displayName,
+            )
+        }.distinctBy { it.url }
+    }
+}
 
 internal object GoogleParser {
     fun parse(json: String): GoogleSearchPage {

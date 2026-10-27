@@ -3,6 +3,7 @@ package com.dooglex.app.ui
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,9 +74,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -84,7 +87,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.dooglex.app.R
 import com.dooglex.app.WebActivity
 import com.dooglex.app.model.AccentPalette
 import com.dooglex.app.model.AppTab
@@ -459,7 +462,11 @@ private fun NativeBadge(dohEnabled: Boolean) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = if (dohEnabled) "HTTPS + DOH · DOOGLEX META" else "HTTPS · DOOGLEX META",
+                text = if (dohEnabled) {
+                    "DOOGLEX × DUCKDUCKGO · HTTPS + DOH"
+                } else {
+                    "DOOGLEX × DUCKDUCKGO · HTTPS"
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.labelSmall,
@@ -472,19 +479,13 @@ private fun NativeBadge(dohEnabled: Boolean) {
 @Composable
 private fun DoogleXLogo() {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
+        Image(
+            painter = painterResource(R.drawable.dooglex_official),
+            contentDescription = null,
             modifier = Modifier
                 .size(38.dp)
-                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "X",
-                color = MaterialTheme.colorScheme.onPrimary,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Black,
-            )
-        }
+                .clip(RoundedCornerShape(12.dp)),
+        )
         Spacer(Modifier.width(10.dp))
         Text(
             text = "doogle",
@@ -642,9 +643,9 @@ private fun NativePrivacyCard(googleConfigured: Boolean) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Text(
                 text = if (googleConfigured) {
-                    "DoogleX Meta сам объединяет и ранжирует результаты. Запросы отправляются в Mojeek, Wikipedia, GitHub и Google; DuckDuckGo не используется."
+                    "DoogleX — наше оформление и ранжирование поверх DuckDuckGo. Запросы также отправляются в Mojeek, Wikipedia, GitHub и Google. Чужие поисковые индексы не выдаются за наш."
                 } else {
-                    "DoogleX Meta сам объединяет и ранжирует результаты. Запросы отправляются в Mojeek, Wikipedia и GitHub; DuckDuckGo не используется. Google можно подключить в настройках."
+                    "DoogleX — наше оформление и ранжирование поверх DuckDuckGo. Запросы также отправляются в Mojeek, Wikipedia и GitHub; Google можно подключить в настройках. Чужие индексы не выдаются за наш."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
@@ -675,7 +676,7 @@ private fun SearchResultsScreen(
                     Icon(Icons.Outlined.ArrowBack, contentDescription = "Вернуться на главную")
                 }
                 Column {
-                    Text("Результаты", style = MaterialTheme.typography.titleLarge)
+                    Text("DoogleX × DuckDuckGo", style = MaterialTheme.typography.titleLarge)
                     Text(
                         text = state.activeQuery,
                         style = MaterialTheme.typography.bodyMedium,
@@ -712,7 +713,7 @@ private fun SearchResultsScreen(
                     }
                     item {
                         Text(
-                            text = "${formatResultCount(searchState.results.size)} · DoogleX Meta · HTTPS",
+                            text = "${formatResultCount(searchState.results.size)} · DoogleX × DuckDuckGo · HTTPS",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp),
@@ -1316,12 +1317,17 @@ private fun SettingsScreen(
 
         item {
             SettingsSection(title = "О приложении") {
-                InfoRow(label = "Версия", value = "1.6.0")
-                InfoRow(label = "Поиск", value = "DoogleX Meta")
+                InfoRow(label = "Версия", value = "1.7.0")
+                InfoRow(label = "Поиск", value = "DoogleX × DuckDuckGo")
                 Text(
-                    "Собственное ранжирование результатов Mojeek, Wikipedia, GitHub и подключаемого Google API. Это метапоиск, а не собственный индекс интернета.",
+                    "Фирменный интерфейс и ранжирование DoogleX поверх DuckDuckGo, Mojeek, Wikipedia, GitHub и подключаемого Google API. Это метапоиск, а не собственный индекс интернета.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SourcePrivacyLink(
+                    label = "Конфиденциальность DuckDuckGo",
+                    url = "https://duckduckgo.com/privacy",
+                    onClick = onOpenPrivacyPolicy,
                 )
                 SourcePrivacyLink(
                     label = "Конфиденциальность Google",
@@ -1422,7 +1428,7 @@ private fun GoogleSearchConfigEditor(
             color = MaterialTheme.colorScheme.primary,
         )
         Text(
-            text = "Ключ и CX хранятся локально и не встраиваются в APK. При поиске они вместе с запросом отправляются в Google по HTTPS; Mojeek, Wikipedia и GitHub остаются активными.",
+            text = "Ключ и CX хранятся локально и не встраиваются в APK. При поиске они вместе с запросом отправляются в Google по HTTPS; DuckDuckGo, Mojeek, Wikipedia и GitHub остаются активными.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

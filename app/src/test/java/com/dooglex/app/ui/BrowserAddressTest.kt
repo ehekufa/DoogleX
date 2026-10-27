@@ -28,7 +28,7 @@ class BrowserAddressTest {
     @Test
     fun `uses web search for ordinary phrases`() {
         assertEquals(
-            "https://www.mojeek.com/search?q=DoogleX%20browser",
+            "https://duckduckgo.com/?q=DoogleX%20browser",
             BrowserAddress.resolve("DoogleX browser"),
         )
     }
