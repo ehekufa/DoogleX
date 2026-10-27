@@ -50,10 +50,10 @@ jobs:
       - name: Run unit tests and assemble debug APK
         run: |
           set +e
-          ./gradlew --stacktrace testDebugUnitTest assembleDebug 2>&1 | tee gradle-output.log
+          ./gradlew --console=plain testDebugUnitTest assembleDebug 2>&1 | tee gradle-output.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            escaped=$(tail -n 60 gradle-output.log | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+            escaped=$(tail -n 120 gradle-output.log | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
             echo "::error::Gradle failed. Last log lines: $escaped"
           fi
           exit "$status"
