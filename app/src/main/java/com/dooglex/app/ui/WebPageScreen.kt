@@ -60,6 +60,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.dooglex.app.privacy.TrackerBlocklist
 import com.dooglex.app.privacy.upgradeToHttps
 import java.io.ByteArrayInputStream
+import java.util.concurrent.atomic.AtomicReference
 
 @Composable
 fun WebPageScreen(
@@ -73,6 +74,7 @@ fun WebPageScreen(
     var isLoading by remember { mutableStateOf(true) }
     var hasError by remember { mutableStateOf(false) }
     var blockedTrackers by remember { mutableIntStateOf(0) }
+    val currentPageHost = remember { AtomicReference(Uri.parse(initialUrl).host) }
 
     fun navigateBack() {
         val browser = webView
@@ -91,6 +93,7 @@ fun WebPageScreen(
             browser.clearFormData()
             browser.clearSslPreferences()
             currentUrl = initialUrl
+            currentPageHost.set(Uri.parse(initialUrl).host)
             pageTitle = Uri.parse(initialUrl).host ?: "DoogleX"
             blockedTrackers = 0
             browser.loadUrl(initialUrl)
@@ -242,9 +245,13 @@ fun WebPageScreen(
                                 view: WebView,
                                 request: WebResourceRequest,
                             ): WebResourceResponse? {
-                                val pageHost = view.url?.let { Uri.parse(it).host }
+                                // This callback runs off the UI thread. Never call view.url here:
+                                // WebView.getUrl() enforces its creating thread on Android 14+.
                                 if (!request.isForMainFrame &&
-                                    TrackerBlocklist.shouldBlock(request.url.host, pageHost)
+                                    TrackerBlocklist.shouldBlock(
+                                        request.url.host,
+                                        currentPageHost.get(),
+                                    )
                                 ) {
                                     blockedTrackers++
                                     return WebResourceResponse(
@@ -266,12 +273,18 @@ fun WebPageScreen(
                             ) {
                                 isLoading = true
                                 hasError = false
-                                if (!url.isNullOrBlank()) currentUrl = url
+                                if (!url.isNullOrBlank()) {
+                                    currentUrl = url
+                                    currentPageHost.set(Uri.parse(url).host)
+                                }
                             }
 
                             override fun onPageFinished(view: WebView, url: String?) {
                                 isLoading = false
-                                if (!url.isNullOrBlank()) currentUrl = url
+                                if (!url.isNullOrBlank()) {
+                                    currentUrl = url
+                                    currentPageHost.set(Uri.parse(url).host)
+                                }
                             }
 
                             override fun onReceivedError(

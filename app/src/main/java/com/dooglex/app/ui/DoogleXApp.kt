@@ -1116,7 +1116,7 @@ private fun SettingsScreen(
 
         item {
             SettingsSection(title = "О приложении") {
-                InfoRow(label = "Версия", value = "1.2.1")
+                InfoRow(label = "Версия", value = "1.2.2")
                 InfoRow(label = "Источник выдачи", value = "DuckDuckGo")
                 TextButton(
                     onClick = onOpenPrivacyPolicy,
