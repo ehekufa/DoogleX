@@ -249,8 +249,10 @@ private fun SearchHomeScreen(
         }
 
         item {
-            Spacer(Modifier.height(8.dp))
-            NativeBadge(dohEnabled = state.dohEnabled)
+            Column {
+                Spacer(Modifier.height(8.dp))
+                NativeBadge(dohEnabled = state.dohEnabled)
+            }
         }
 
         item {
@@ -383,8 +385,9 @@ private fun NativeBadge(dohEnabled: Boolean) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = if (dohEnabled) "HTTPS + DOH · ПРИВАТНАЯ СЕССИЯ"
-                else "HTTPS · ПРИВАТНАЯ СЕССИЯ",
+                text = if (dohEnabled) "HTTPS + DOH · ПРИВАТНО" else "HTTPS · ПРИВАТНО",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -859,15 +862,17 @@ private fun SavedScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text("Закладки", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(5.dp))
-            Text(
-                text = if (savedResults.isEmpty()) "Здесь будут ваши находки"
-                else "${formatResultCount(savedResults.size)} на устройстве",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(10.dp))
+            Column {
+                Text("Закладки", style = MaterialTheme.typography.headlineMedium)
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    text = if (savedResults.isEmpty()) "Здесь будут ваши находки"
+                    else "${formatResultCount(savedResults.size)} на устройстве",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(10.dp))
+            }
         }
 
         if (savedResults.isEmpty()) {
@@ -960,12 +965,14 @@ private fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text("Настройки", style = MaterialTheme.typography.headlineMedium)
-            Text(
-                "Настройки хранятся только на этом устройстве",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Column {
+                Text("Настройки", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    "Настройки хранятся только на этом устройстве",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
         item {
@@ -1070,7 +1077,7 @@ private fun SettingsScreen(
                 InfoRow(label = "Известные трекеры", value = "Блокируются")
                 InfoRow(label = "HTTPS-only", value = "Всегда")
                 InfoRow(label = "Cookies, кэш и история", value = "Удаляются")
-                InfoRow(label = "Скриншоты страниц", value = "Запрещены")
+                InfoRow(label = "Демонстрация экрана", value = "Разрешена")
                 Text(
                     text = "Кнопка «Новая сессия» на открытой странице очищает данные и загружает её заново. Это не смена IP-адреса и не полная защита от fingerprinting.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -1109,7 +1116,7 @@ private fun SettingsScreen(
 
         item {
             SettingsSection(title = "О приложении") {
-                InfoRow(label = "Версия", value = "1.2.0")
+                InfoRow(label = "Версия", value = "1.2.1")
                 InfoRow(label = "Источник выдачи", value = "DuckDuckGo")
                 TextButton(
                     onClick = onOpenPrivacyPolicy,
@@ -1148,7 +1155,7 @@ private fun SettingsSection(
                 MaterialTheme.colorScheme.outline.copy(alpha = 0.65f),
             ),
         ) {
-            Box(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 content()
             }
         }

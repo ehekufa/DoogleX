@@ -151,36 +151,40 @@ fun WebPageScreen(
         }
 
         Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    Icons.Outlined.Shield,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Приватная сессия", style = MaterialTheme.typography.labelLarge)
-                    Text(
-                        text = if (blockedTrackers > 0) "Трекеров заблокировано: $blockedTrackers"
-                        else "HTTPS · сторонние cookies запрещены",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.Shield,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary,
                     )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Приватная сессия",
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        onClick = ::resetPrivateSession,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    ) {
+                        Text("Новая сессия", maxLines = 1)
+                    }
                 }
-                TextButton(
-                    onClick = ::resetPrivateSession,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                ) {
-                    Text("Новая сессия", maxLines = 1)
-                }
+                Text(
+                    text = if (blockedTrackers > 0) "Трекеров заблокировано: $blockedTrackers"
+                    else "HTTPS · сторонние cookies запрещены",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 26.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
 
