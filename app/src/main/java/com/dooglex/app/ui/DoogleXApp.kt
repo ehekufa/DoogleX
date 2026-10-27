@@ -2,8 +2,6 @@ package com.dooglex.app.ui
 
 import android.content.ActivityNotFoundException
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -80,6 +78,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dooglex.app.WebActivity
 import com.dooglex.app.model.AppTab
 import com.dooglex.app.model.DoogleXUiState
 import com.dooglex.app.model.SearchResult
@@ -382,7 +381,7 @@ private fun NativeBadge() {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "НАТИВНО · БЕЗ CHROMIUM",
+                text = "ПОИСК И САЙТЫ · В ОДНОМ ПРИЛОЖЕНИИ",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -1054,13 +1053,13 @@ private fun SettingsScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Без WebView и Chromium",
+                        "Сайты открываются внутри",
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "DoogleX — нативный Android-клиент. Поиск и результаты отображаются средствами системы, без встроенного браузера.",
+                        "Поиск, результаты и страницы остаются в DoogleX. Для просмотра сайтов используется системный WebView на Chromium; внешний браузер запускается только по отдельной кнопке.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
                     )
@@ -1070,7 +1069,7 @@ private fun SettingsScreen(
 
         item {
             SettingsSection(title = "О приложении") {
-                InfoRow(label = "Версия", value = "1.0.0")
+                InfoRow(label = "Версия", value = "1.1.0")
                 InfoRow(label = "Источник выдачи", value = "DuckDuckGo")
                 TextButton(
                     onClick = onOpenPrivacyPolicy,
@@ -1198,8 +1197,8 @@ private fun formatResultCount(count: Int): String {
 
 private fun openWebsite(context: Context, url: String) {
     try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        context.startActivity(WebActivity.createIntent(context, url))
     } catch (_: ActivityNotFoundException) {
-        Toast.makeText(context, "Не найдено приложение для открытия ссылки", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Не удалось открыть страницу в DoogleX", Toast.LENGTH_SHORT).show()
     }
 }
