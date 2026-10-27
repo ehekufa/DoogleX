@@ -1208,7 +1208,7 @@ private fun SettingsScreen(
 
         item {
             SettingsSection(title = "О приложении") {
-                InfoRow(label = "Версия", value = "1.5.0")
+                InfoRow(label = "Версия", value = "1.5.1")
                 InfoRow(label = "Поиск", value = "DoogleX Meta")
                 Text(
                     "Собственное ранжирование результатов Mojeek, Wikipedia и GitHub. Это метапоиск, а не собственный индекс интернета.",
