@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
+import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,6 +15,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.dooglex.app.data.PreferencesStore
 import com.dooglex.app.data.StoredPreferences
+import com.dooglex.app.privacy.upgradeToHttps
 import com.dooglex.app.ui.WebPageScreen
 import com.dooglex.app.ui.theme.DoogleXTheme
 
@@ -28,14 +31,17 @@ class WebActivity : ComponentActivity() {
             return
         }
 
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        WebView.setWebContentsDebuggingEnabled(false)
         enableEdgeToEdge()
+        val secureInitialUrl = upgradeToHttps(initialUrl!!)
         setContent {
             val preferences by preferencesStore.preferences.collectAsState(
                 initial = StoredPreferences(),
             )
             DoogleXTheme(themeMode = preferences.themeMode) {
                 WebPageScreen(
-                    initialUrl = initialUrl!!,
+                    initialUrl = secureInitialUrl,
                     onClose = { finish() },
                     onOpenExternal = { url -> openExternal(url) },
                 )

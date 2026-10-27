@@ -97,6 +97,7 @@ fun DoogleXApp(
     onToggleSaved: (SearchResult) -> Unit,
     onHistoryEnabledChange: (Boolean) -> Unit,
     onSafeSearchChange: (Boolean) -> Unit,
+    onDohEnabledChange: (Boolean) -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
     onClearHistory: () -> Unit,
 ) {
@@ -150,6 +151,7 @@ fun DoogleXApp(
                     state = state,
                     onHistoryEnabledChange = onHistoryEnabledChange,
                     onSafeSearchChange = onSafeSearchChange,
+                    onDohEnabledChange = onDohEnabledChange,
                     onThemeModeChange = onThemeModeChange,
                     onClearHistory = onClearHistory,
                     onOpenPrivacyPolicy = {
@@ -248,7 +250,7 @@ private fun SearchHomeScreen(
 
         item {
             Spacer(Modifier.height(8.dp))
-            NativeBadge()
+            NativeBadge(dohEnabled = state.dohEnabled)
         }
 
         item {
@@ -365,7 +367,7 @@ private fun SearchHomeScreen(
 }
 
 @Composable
-private fun NativeBadge() {
+private fun NativeBadge(dohEnabled: Boolean) {
     Surface(
         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
         shape = CircleShape,
@@ -381,7 +383,8 @@ private fun NativeBadge() {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "ПОИСК И САЙТЫ · В ОДНОМ ПРИЛОЖЕНИИ",
+                text = if (dohEnabled) "HTTPS + DOH · ПРИВАТНАЯ СЕССИЯ"
+                else "HTTPS · ПРИВАТНАЯ СЕССИЯ",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -620,7 +623,7 @@ private fun SearchResultsScreen(
                 } else {
                     item {
                         Text(
-                            text = "${formatResultCount(searchState.results.size)} · DuckDuckGo",
+                            text = "${formatResultCount(searchState.results.size)} · DuckDuckGo · HTTPS",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp),
@@ -946,6 +949,7 @@ private fun SettingsScreen(
     state: DoogleXUiState,
     onHistoryEnabledChange: (Boolean) -> Unit,
     onSafeSearchChange: (Boolean) -> Unit,
+    onDohEnabledChange: (Boolean) -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
     onClearHistory: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
@@ -989,6 +993,26 @@ private fun SettingsScreen(
                         modifier = Modifier.weight(1f),
                     )
                 }
+            }
+        }
+
+        item {
+            SettingsSection(title = "Защита соединения") {
+                SettingsSwitchRow(
+                    title = "DNS over HTTPS",
+                    description = "DNS нативного поиска через Cloudflare, без обычного DNS провайдера",
+                    checked = state.dohEnabled,
+                    onCheckedChange = onDohEnabledChange,
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.65f))
+                InfoRow(label = "Шифрование запросов", value = "TLS / HTTPS")
+                InfoRow(label = "Обычный HTTP", value = "Запрещён")
+                Text(
+                    text = "Текст запросов зашифрован. DoH работает для поиска; WebView использует системный DNS, поэтому домены сайтов могут быть видны провайдеру.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
             }
         }
 
@@ -1041,6 +1065,22 @@ private fun SettingsScreen(
         }
 
         item {
+            SettingsSection(title = "Приватность страниц") {
+                InfoRow(label = "Сторонние cookies", value = "Заблокированы")
+                InfoRow(label = "Известные трекеры", value = "Блокируются")
+                InfoRow(label = "HTTPS-only", value = "Всегда")
+                InfoRow(label = "Cookies, кэш и история", value = "Удаляются")
+                InfoRow(label = "Скриншоты страниц", value = "Запрещены")
+                Text(
+                    text = "Кнопка «Новая сессия» на открытой странице очищает данные и загружает её заново. Это не смена IP-адреса и не полная защита от fingerprinting.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
+        }
+
+        item {
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.primaryContainer,
@@ -1069,7 +1109,7 @@ private fun SettingsScreen(
 
         item {
             SettingsSection(title = "О приложении") {
-                InfoRow(label = "Версия", value = "1.1.0")
+                InfoRow(label = "Версия", value = "1.2.0")
                 InfoRow(label = "Источник выдачи", value = "DuckDuckGo")
                 TextButton(
                     onClick = onOpenPrivacyPolicy,

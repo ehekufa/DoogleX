@@ -17,8 +17,9 @@ private val Context.doogleXDataStore by preferencesDataStore(name = "dooglex_pre
 data class StoredPreferences(
     val history: List<String> = emptyList(),
     val savedResults: List<SearchResult> = emptyList(),
-    val historyEnabled: Boolean = true,
+    val historyEnabled: Boolean = false,
     val safeSearchEnabled: Boolean = true,
+    val dohEnabled: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
 )
 
@@ -27,14 +28,16 @@ class PreferencesStore(private val context: Context) {
     private val savedResultsKey = stringPreferencesKey("saved_results")
     private val historyEnabledKey = booleanPreferencesKey("history_enabled")
     private val safeSearchEnabledKey = booleanPreferencesKey("safe_search_enabled")
+    private val dohEnabledKey = booleanPreferencesKey("doh_enabled")
     private val themeModeKey = stringPreferencesKey("theme_mode")
 
     val preferences: Flow<StoredPreferences> = context.doogleXDataStore.data.map { values ->
         StoredPreferences(
             history = decodeHistory(values[historyKey]),
             savedResults = decodeResults(values[savedResultsKey]),
-            historyEnabled = values[historyEnabledKey] ?: true,
+            historyEnabled = values[historyEnabledKey] ?: false,
             safeSearchEnabled = values[safeSearchEnabledKey] ?: true,
+            dohEnabled = values[dohEnabledKey] ?: true,
             themeMode = values[themeModeKey]
                 ?.let { name -> runCatching { ThemeMode.valueOf(name) }.getOrNull() }
                 ?: ThemeMode.SYSTEM,
@@ -66,6 +69,12 @@ class PreferencesStore(private val context: Context) {
     suspend fun setSafeSearchEnabled(enabled: Boolean) {
         context.doogleXDataStore.edit { values ->
             values[safeSearchEnabledKey] = enabled
+        }
+    }
+
+    suspend fun setDohEnabled(enabled: Boolean) {
+        context.doogleXDataStore.edit { values ->
+            values[dohEnabledKey] = enabled
         }
     }
 

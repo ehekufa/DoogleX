@@ -36,7 +36,8 @@ data class DoogleXUiState(
     val searchState: SearchUiState = SearchUiState.Idle,
     val history: List<String> = emptyList(),
     val savedResults: List<SearchResult> = emptyList(),
-    val historyEnabled: Boolean = true,
+    val historyEnabled: Boolean = false,
     val safeSearchEnabled: Boolean = true,
+    val dohEnabled: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
 )

@@ -35,6 +35,7 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
                         savedResults = preferences.savedResults,
                         historyEnabled = preferences.historyEnabled,
                         safeSearchEnabled = preferences.safeSearchEnabled,
+                        dohEnabled = preferences.dohEnabled,
                         themeMode = preferences.themeMode,
                     )
                 }
@@ -56,6 +57,7 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
 
         searchJob?.cancel()
         val safeSearch = mutableUiState.value.safeSearchEnabled
+        val useDoh = mutableUiState.value.dohEnabled
         mutableUiState.update {
             it.copy(
                 query = query,
@@ -70,7 +72,7 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
 
         searchJob = viewModelScope.launch {
             try {
-                val results = repository.search(query, safeSearch)
+                val results = repository.search(query, safeSearch, useDoh)
                 mutableUiState.update { it.copy(searchState = SearchUiState.Success(results)) }
             } catch (error: CancellationException) {
                 throw error
@@ -116,6 +118,11 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
     fun setSafeSearchEnabled(enabled: Boolean) {
         mutableUiState.update { it.copy(safeSearchEnabled = enabled) }
         viewModelScope.launch { preferencesStore.setSafeSearchEnabled(enabled) }
+    }
+
+    fun setDohEnabled(enabled: Boolean) {
+        mutableUiState.update { it.copy(dohEnabled = enabled) }
+        viewModelScope.launch { preferencesStore.setDohEnabled(enabled) }
     }
 
     fun setThemeMode(mode: ThemeMode) {

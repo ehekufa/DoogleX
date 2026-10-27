@@ -1,6 +1,7 @@
 package com.dooglex.app
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,6 +15,7 @@ import com.dooglex.app.ui.theme.DoogleXTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         setContent {
             val doogleXViewModel: DoogleXViewModel = viewModel()
@@ -29,6 +31,7 @@ class MainActivity : ComponentActivity() {
                     onToggleSaved = doogleXViewModel::toggleSaved,
                     onHistoryEnabledChange = doogleXViewModel::setHistoryEnabled,
                     onSafeSearchChange = doogleXViewModel::setSafeSearchEnabled,
+                    onDohEnabledChange = doogleXViewModel::setDohEnabled,
                     onThemeModeChange = doogleXViewModel::setThemeMode,
                     onClearHistory = doogleXViewModel::clearHistory,
                 )
