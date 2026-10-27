@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dooglex.app.data.DoogleXMetaSearchRepository
+import com.dooglex.app.data.GoogleSearchErrors
+import com.dooglex.app.data.MetaSearchResultMerger
 import com.dooglex.app.data.PreferencesStore
 import com.dooglex.app.model.AccentPalette
 import com.dooglex.app.model.AppTab
@@ -27,6 +29,8 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
     private val preferencesStore = PreferencesStore(application.applicationContext)
     private val mutableUiState = MutableStateFlow(DoogleXUiState())
     private var searchJob: Job? = null
+    private var loadMoreJob: Job? = null
+    private var searchGeneration = 0L
 
     val uiState: StateFlow<DoogleXUiState> = mutableUiState.asStateFlow()
 
@@ -41,6 +45,8 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
                         safeSearchEnabled = preferences.safeSearchEnabled,
                         dohEnabled = preferences.dohEnabled,
                         dohProvider = preferences.dohProvider,
+                        googleApiKey = preferences.googleApiKey,
+                        googleSearchEngineId = preferences.googleSearchEngineId,
                         themeMode = preferences.themeMode,
                         interfaceStyle = preferences.interfaceStyle,
                         accentPalette = preferences.accentPalette,
@@ -67,9 +73,9 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
         if (query.isEmpty()) return
 
         searchJob?.cancel()
-        val safeSearch = mutableUiState.value.safeSearchEnabled
-        val useDoh = mutableUiState.value.dohEnabled
-        val dohProvider = mutableUiState.value.dohProvider
+        loadMoreJob?.cancel()
+        val generation = ++searchGeneration
+        val config = mutableUiState.value
         mutableUiState.update {
             it.copy(
                 query = query,
@@ -78,23 +84,116 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
                 searchState = SearchUiState.Loading,
             )
         }
-        if (mutableUiState.value.historyEnabled) {
+        if (config.historyEnabled) {
             viewModelScope.launch { preferencesStore.addHistory(query) }
         }
 
         searchJob = viewModelScope.launch {
             try {
-                val results = repository.search(query, safeSearch, useDoh, dohProvider)
-                mutableUiState.update { it.copy(searchState = SearchUiState.Success(results)) }
+                val response = repository.search(
+                    query = query,
+                    safeSearch = config.safeSearchEnabled,
+                    useDoh = config.dohEnabled,
+                    dohProvider = config.dohProvider,
+                    googleApiKey = config.googleApiKey,
+                    googleSearchEngineId = config.googleSearchEngineId,
+                )
+                mutableUiState.update { state ->
+                    if (generation != searchGeneration) {
+                        state
+                    } else {
+                        state.copy(
+                            searchState = SearchUiState.Success(
+                                results = response.results,
+                                googleNextStart = response.googleNextStart,
+                                googleError = response.googleError,
+                            ),
+                        )
+                    }
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                mutableUiState.update {
-                    it.copy(
-                        searchState = SearchUiState.Error(
-                            "Не удалось получить результаты. Проверьте подключение к интернету и попробуйте ещё раз.",
-                        ),
-                    )
+                mutableUiState.update { state ->
+                    if (generation != searchGeneration) {
+                        state
+                    } else {
+                        state.copy(
+                            searchState = SearchUiState.Error(
+                                "Не удалось получить результаты. Проверьте подключение к интернету и попробуйте ещё раз.",
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun loadMoreGoogleResults() {
+        val config = mutableUiState.value
+        val success = config.searchState as? SearchUiState.Success ?: return
+        val start = success.googleNextStart ?: return
+        if (success.loadingMore) return
+
+        val query = config.activeQuery
+        val generation = searchGeneration
+        mutableUiState.update { state ->
+            val current = state.searchState as? SearchUiState.Success
+            if (current == null) {
+                state
+            } else {
+                state.copy(
+                    searchState = current.copy(loadingMore = true, loadMoreError = null),
+                )
+            }
+        }
+        loadMoreJob = viewModelScope.launch {
+            try {
+                val page = repository.loadGoogleResults(
+                    query = query,
+                    start = start,
+                    safeSearch = config.safeSearchEnabled,
+                    useDoh = config.dohEnabled,
+                    dohProvider = config.dohProvider,
+                    apiKey = config.googleApiKey,
+                    searchEngineId = config.googleSearchEngineId,
+                )
+                mutableUiState.update { state ->
+                    val current = state.searchState as? SearchUiState.Success
+                    if (generation != searchGeneration ||
+                        state.activeQuery != query ||
+                        current == null
+                    ) {
+                        state
+                    } else {
+                        state.copy(
+                            searchState = current.copy(
+                                results = MetaSearchResultMerger.append(current.results, page.results),
+                                googleNextStart = page.nextStart?.takeIf { it > start },
+                                loadingMore = false,
+                                loadMoreError = null,
+                            ),
+                        )
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutableUiState.update { state ->
+                    val current = state.searchState as? SearchUiState.Success
+                    if (generation != searchGeneration ||
+                        state.activeQuery != query ||
+                        current == null
+                    ) {
+                        state
+                    } else {
+                        state.copy(
+                            searchState = current.copy(
+                                loadingMore = false,
+                                loadMoreError = GoogleSearchErrors.message(error),
+                            ),
+                        )
+                    }
                 }
             }
         }
@@ -102,6 +201,8 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
 
     fun backToSearchHome() {
         searchJob?.cancel()
+        loadMoreJob?.cancel()
+        searchGeneration++
         mutableUiState.update {
             it.copy(
                 query = "",
@@ -140,6 +241,20 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
     fun setDohProvider(provider: DohProvider) {
         mutableUiState.update { it.copy(dohProvider = provider) }
         viewModelScope.launch { preferencesStore.setDohProvider(provider) }
+    }
+
+    fun setGoogleSearchConfig(apiKey: String, searchEngineId: String) {
+        val cleanKey = apiKey.trim()
+        val cleanSearchEngineId = searchEngineId.trim()
+        mutableUiState.update {
+            it.copy(
+                googleApiKey = cleanKey,
+                googleSearchEngineId = cleanSearchEngineId,
+            )
+        }
+        viewModelScope.launch {
+            preferencesStore.setGoogleSearchConfig(cleanKey, cleanSearchEngineId)
+        }
     }
 
     fun setThemeMode(mode: ThemeMode) {

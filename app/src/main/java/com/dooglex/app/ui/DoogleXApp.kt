@@ -43,6 +43,9 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -64,6 +67,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -72,6 +79,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -92,6 +101,7 @@ fun DoogleXApp(
     state: DoogleXUiState,
     onQueryChange: (String) -> Unit,
     onSearch: (String) -> Unit,
+    onLoadMoreGoogle: () -> Unit,
     onBackToHome: () -> Unit,
     onTabSelected: (AppTab) -> Unit,
     onToggleSaved: (SearchResult) -> Unit,
@@ -99,6 +109,7 @@ fun DoogleXApp(
     onSafeSearchChange: (Boolean) -> Unit,
     onDohEnabledChange: (Boolean) -> Unit,
     onDohProviderChange: (DohProvider) -> Unit,
+    onGoogleSearchConfigSave: (String, String) -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
     onInterfaceStyleChange: (InterfaceStyle) -> Unit,
     onAccentPaletteChange: (AccentPalette) -> Unit,
@@ -150,6 +161,7 @@ fun DoogleXApp(
                             state = state,
                             onQueryChange = onQueryChange,
                             onSearch = ::submitSearchOrAddress,
+                            onLoadMoreGoogle = onLoadMoreGoogle,
                             onBackToHome = onBackToHome,
                             onOpenResult = { result -> openWebsite(context, result.url) },
                             onToggleSaved = onToggleSaved,
@@ -184,6 +196,7 @@ fun DoogleXApp(
                     onSafeSearchChange = onSafeSearchChange,
                     onDohEnabledChange = onDohEnabledChange,
                     onDohProviderChange = onDohProviderChange,
+                    onGoogleSearchConfigSave = onGoogleSearchConfigSave,
                     onClearHistory = onClearHistory,
                     onOpenPrivacyPolicy = { url -> openWebsite(context, url) },
                 )
@@ -421,7 +434,10 @@ private fun SearchHomeScreen(
         }
 
         item {
-            NativePrivacyCard()
+            NativePrivacyCard(
+                googleConfigured = state.googleApiKey.isNotBlank() &&
+                    state.googleSearchEngineId.isNotBlank(),
+            )
         }
     }
 }
@@ -589,7 +605,7 @@ private fun SuggestionChip(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun NativePrivacyCard() {
+private fun NativePrivacyCard(googleConfigured: Boolean) {
     Surface(
         shape = RoundedCornerShape(26.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -625,7 +641,11 @@ private fun NativePrivacyCard() {
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Text(
-                text = "DoogleX Meta сам объединяет и ранжирует результаты. Запросы отправляются в Mojeek, Wikipedia и GitHub; DuckDuckGo не используется.",
+                text = if (googleConfigured) {
+                    "DoogleX Meta сам объединяет и ранжирует результаты. Запросы отправляются в Mojeek, Wikipedia, GitHub и Google; DuckDuckGo не используется."
+                } else {
+                    "DoogleX Meta сам объединяет и ранжирует результаты. Запросы отправляются в Mojeek, Wikipedia и GitHub; DuckDuckGo не используется. Google можно подключить в настройках."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -638,6 +658,7 @@ private fun SearchResultsScreen(
     state: DoogleXUiState,
     onQueryChange: (String) -> Unit,
     onSearch: (String) -> Unit,
+    onLoadMoreGoogle: () -> Unit,
     onBackToHome: () -> Unit,
     onOpenResult: (SearchResult) -> Unit,
     onToggleSaved: (SearchResult) -> Unit,
@@ -681,8 +702,14 @@ private fun SearchResultsScreen(
 
             is SearchUiState.Success -> {
                 if (searchState.results.isEmpty()) {
+                    if (searchState.googleError != null) {
+                        item { GoogleSourceWarning(message = searchState.googleError) }
+                    }
                     item { EmptyResults(query = state.activeQuery) }
                 } else {
+                    if (searchState.googleError != null) {
+                        item { GoogleSourceWarning(message = searchState.googleError) }
+                    }
                     item {
                         Text(
                             text = "${formatResultCount(searchState.results.size)} · DoogleX Meta · HTTPS",
@@ -701,6 +728,15 @@ private fun SearchResultsScreen(
                         )
                     }
                 }
+                if (searchState.googleNextStart != null) {
+                    item {
+                        LoadMoreGoogleResults(
+                            loading = searchState.loadingMore,
+                            error = searchState.loadMoreError,
+                            onClick = onLoadMoreGoogle,
+                        )
+                    }
+                }
             }
 
             is SearchUiState.Error -> {
@@ -713,6 +749,64 @@ private fun SearchResultsScreen(
             }
 
             SearchUiState.Idle -> Unit
+        }
+    }
+}
+
+@Composable
+private fun GoogleSourceWarning(message: String) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Outlined.ErrorOutline,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = "$message Результаты других источников сохранены.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoadMoreGoogleResults(
+    loading: Boolean,
+    error: String?,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (error != null) {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center,
+            )
+        }
+        Button(onClick = onClick, enabled = !loading) {
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(if (loading) "Загружаем…" else "Ещё результаты Google")
         }
     }
 }
@@ -1032,6 +1126,7 @@ private fun SettingsScreen(
     onSafeSearchChange: (Boolean) -> Unit,
     onDohEnabledChange: (Boolean) -> Unit,
     onDohProviderChange: (DohProvider) -> Unit,
+    onGoogleSearchConfigSave: (String, String) -> Unit,
     onClearHistory: () -> Unit,
     onOpenPrivacyPolicy: (String) -> Unit,
 ) {
@@ -1098,6 +1193,19 @@ private fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 10.dp),
+                )
+            }
+        }
+
+        item {
+            SettingsSection(title = "Широкий поиск Google") {
+                GoogleSearchConfigEditor(
+                    apiKey = state.googleApiKey,
+                    searchEngineId = state.googleSearchEngineId,
+                    onSave = onGoogleSearchConfigSave,
+                    onOpenGuide = {
+                        onOpenPrivacyPolicy("https://developers.google.com/custom-search/v1/overview")
+                    },
                 )
             }
         }
@@ -1208,12 +1316,17 @@ private fun SettingsScreen(
 
         item {
             SettingsSection(title = "О приложении") {
-                InfoRow(label = "Версия", value = "1.5.1")
+                InfoRow(label = "Версия", value = "1.6.0")
                 InfoRow(label = "Поиск", value = "DoogleX Meta")
                 Text(
-                    "Собственное ранжирование результатов Mojeek, Wikipedia и GitHub. Это метапоиск, а не собственный индекс интернета.",
+                    "Собственное ранжирование результатов Mojeek, Wikipedia, GitHub и подключаемого Google API. Это метапоиск, а не собственный индекс интернета.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SourcePrivacyLink(
+                    label = "Конфиденциальность Google",
+                    url = "https://policies.google.com/privacy?hl=ru",
+                    onClick = onOpenPrivacyPolicy,
                 )
                 SourcePrivacyLink(
                     label = "Конфиденциальность Mojeek",
@@ -1231,6 +1344,92 @@ private fun SettingsScreen(
                     onClick = onOpenPrivacyPolicy,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun GoogleSearchConfigEditor(
+    apiKey: String,
+    searchEngineId: String,
+    onSave: (String, String) -> Unit,
+    onOpenGuide: () -> Unit,
+) {
+    var keyInput by remember(apiKey) { mutableStateOf(apiKey) }
+    var searchEngineInput by remember(searchEngineId) { mutableStateOf(searchEngineId) }
+    var showKey by remember { mutableStateOf(false) }
+    val changed = keyInput.trim() != apiKey || searchEngineInput.trim() != searchEngineId
+    val configured = apiKey.isNotBlank() && searchEngineId.isNotBlank()
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = "Добавляет широкий веб-поиск Google к нативной выдаче DoogleX. В Programmable Search Engine включите поиск по всему вебу, иначе Google будет искать только по выбранным сайтам.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedTextField(
+            value = keyInput,
+            onValueChange = { keyInput = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("API-ключ Google") },
+            singleLine = true,
+            visualTransformation = if (showKey) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            trailingIcon = {
+                IconButton(onClick = { showKey = !showKey }) {
+                    Icon(
+                        if (showKey) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                        contentDescription = if (showKey) "Скрыть API-ключ" else "Показать API-ключ",
+                    )
+                }
+            },
+        )
+        OutlinedTextField(
+            value = searchEngineInput,
+            onValueChange = { searchEngineInput = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("ID поисковой системы (CX)") },
+            singleLine = true,
+        )
+        Button(
+            onClick = { onSave(keyInput, searchEngineInput) },
+            enabled = changed,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Сохранить подключение")
+        }
+        if (configured) {
+            TextButton(
+                onClick = {
+                    keyInput = ""
+                    searchEngineInput = ""
+                    onSave("", "")
+                },
+            ) {
+                Text("Отключить Google и удалить данные")
+            }
+        }
+        Text(
+            text = if (configured) {
+                "Поля заполнены. Подключение проверится при следующем поиске."
+            } else {
+                "Google не используется, пока оба поля не заполнены."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = "Ключ и CX хранятся локально и не встраиваются в APK. При поиске они вместе с запросом отправляются в Google по HTTPS; Mojeek, Wikipedia и GitHub остаются активными.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onOpenGuide, contentPadding = PaddingValues(0.dp)) {
+            Text("Официальная инструкция Google API", maxLines = 2)
+            Spacer(Modifier.width(5.dp))
+            Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
         }
     }
 }

@@ -65,7 +65,13 @@ sealed interface SearchUiState {
 
     data object Loading : SearchUiState
 
-    data class Success(val results: List<SearchResult>) : SearchUiState
+    data class Success(
+        val results: List<SearchResult>,
+        val googleNextStart: Int? = null,
+        val googleError: String? = null,
+        val loadingMore: Boolean = false,
+        val loadMoreError: String? = null,
+    ) : SearchUiState
 
     data class Error(val message: String) : SearchUiState
 }
@@ -81,6 +87,8 @@ data class DoogleXUiState(
     val safeSearchEnabled: Boolean = true,
     val dohEnabled: Boolean = true,
     val dohProvider: DohProvider = DohProvider.CLOUDFLARE,
+    val googleApiKey: String = "",
+    val googleSearchEngineId: String = "",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val interfaceStyle: InterfaceStyle = InterfaceStyle.CLASSIC,
     val accentPalette: AccentPalette = AccentPalette.LIME,

@@ -20,7 +20,27 @@ import org.json.JSONObject
 import org.jsoup.Jsoup
 import kotlin.math.max
 
-class SearchUnavailableException(message: String) : IOException(message)
+class SearchUnavailableException(
+    message: String,
+    val httpCode: Int? = null,
+) : IOException(message)
+
+internal data class MetaSearchResponse(
+    val results: List<SearchResult>,
+    val googleNextStart: Int? = null,
+    val googleError: String? = null,
+)
+
+internal data class GoogleSearchPage(
+    val results: List<SearchResult>,
+    val nextStart: Int? = null,
+)
+
+private data class GoogleSourceFetch(
+    val sourceResults: MetaSourceResults? = null,
+    val nextStart: Int? = null,
+    val error: String? = null,
+)
 
 /** DoogleX metasearch: independent fetching, deduplication and ranking above source indexes. */
 class DoogleXMetaSearchRepository {
@@ -51,12 +71,14 @@ class DoogleXMetaSearchRepository {
         systemDnsClient.newBuilder().dns(dns).build()
     }
 
-    suspend fun search(
+    internal suspend fun search(
         query: String,
         safeSearch: Boolean,
         useDoh: Boolean,
         dohProvider: DohProvider,
-    ): List<SearchResult> = withContext(Dispatchers.IO) {
+        googleApiKey: String = "",
+        googleSearchEngineId: String = "",
+    ): MetaSearchResponse = withContext(Dispatchers.IO) {
         val client = if (useDoh) dohClient(dohProvider) else systemDnsClient
         val mojeek = async {
             fetchSource { MetaSourceResults(MetaSource.MOJEEK, fetchMojeek(client, query, safeSearch)) }
@@ -67,13 +89,63 @@ class DoogleXMetaSearchRepository {
         val github = async {
             fetchSource { MetaSourceResults(MetaSource.GITHUB, fetchGitHub(client, query)) }
         }
+        val google = if (googleApiKey.isNotBlank() && googleSearchEngineId.isNotBlank()) {
+            async {
+                fetchGoogleSource(
+                    client = client,
+                    query = query,
+                    safeSearch = safeSearch,
+                    apiKey = googleApiKey.trim(),
+                    searchEngineId = googleSearchEngineId.trim(),
+                    start = 1,
+                )
+            }
+        } else {
+            null
+        }
 
-        val sources = listOfNotNull(mojeek.await(), wikipedia.await(), github.await())
+        val googleResult = google?.await()
+        val sources = listOfNotNull(
+            googleResult?.sourceResults,
+            mojeek.await(),
+            wikipedia.await(),
+            github.await(),
+        )
         if (sources.isEmpty()) {
-            throw SearchUnavailableException("Ни один источник метапоиска не ответил")
+            throw SearchUnavailableException(
+                googleResult?.error ?: "Ни один источник метапоиска не ответил",
+            )
         }
         val ranked = MetaSearchRanker.rank(query, sources)
-        if (safeSearch) SafeSearchFilter.filter(ranked) else ranked
+        MetaSearchResponse(
+            results = if (safeSearch) SafeSearchFilter.filter(ranked) else ranked,
+            googleNextStart = googleResult?.nextStart,
+            googleError = googleResult?.error,
+        )
+    }
+
+    internal suspend fun loadGoogleResults(
+        query: String,
+        start: Int,
+        safeSearch: Boolean,
+        useDoh: Boolean,
+        dohProvider: DohProvider,
+        apiKey: String,
+        searchEngineId: String,
+    ): GoogleSearchPage = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank() || searchEngineId.isBlank()) {
+            throw SearchUnavailableException("Google API не настроен")
+        }
+        val client = if (useDoh) dohClient(dohProvider) else systemDnsClient
+        val page = fetchGoogle(
+            client = client,
+            query = query,
+            safeSearch = safeSearch,
+            apiKey = apiKey.trim(),
+            searchEngineId = searchEngineId.trim(),
+            start = start,
+        )
+        page.copy(results = if (safeSearch) SafeSearchFilter.filter(page.results) else page.results)
     }
 
     private fun fetchSource(block: () -> MetaSourceResults): MetaSourceResults? = try {
@@ -122,12 +194,52 @@ class DoogleXMetaSearchRepository {
         }
     }
 
-    private fun fetch(
+    private fun fetchGoogleSource(
+        client: OkHttpClient,
+        query: String,
+        safeSearch: Boolean,
+        apiKey: String,
+        searchEngineId: String,
+        start: Int,
+    ): GoogleSourceFetch = try {
+        val page = fetchGoogle(client, query, safeSearch, apiKey, searchEngineId, start)
+        GoogleSourceFetch(
+            sourceResults = MetaSourceResults(MetaSource.GOOGLE, page.results),
+            nextStart = page.nextStart,
+        )
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        GoogleSourceFetch(error = GoogleSearchErrors.message(error))
+    }
+
+    private fun fetchGoogle(
+        client: OkHttpClient,
+        query: String,
+        safeSearch: Boolean,
+        apiKey: String,
+        searchEngineId: String,
+        start: Int,
+    ): GoogleSearchPage {
+        val url = GOOGLE_ENDPOINT.newBuilder()
+            .addQueryParameter("key", apiKey)
+            .addQueryParameter("cx", searchEngineId)
+            .addQueryParameter("q", query)
+            .addQueryParameter("num", "10")
+            .addQueryParameter("start", start.coerceAtLeast(1).toString())
+            .addQueryParameter("safe", if (safeSearch) "active" else "off")
+            .build()
+        return fetch(client, url, "application/json") { body, _ ->
+            GoogleParser.parse(body)
+        }
+    }
+
+    private fun <T> fetch(
         client: OkHttpClient,
         url: HttpUrl,
         accept: String,
-        parser: (String, HttpUrl) -> List<SearchResult>,
-    ): List<SearchResult> {
+        parser: (String, HttpUrl) -> T,
+    ): T {
         val request = Request.Builder()
             .url(url)
             .header("Accept", accept)
@@ -136,7 +248,10 @@ class DoogleXMetaSearchRepository {
             .build()
         return client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw SearchUnavailableException("Источник вернул ошибку ${response.code}")
+                throw SearchUnavailableException(
+                    "Источник вернул ошибку ${response.code}",
+                    httpCode = response.code,
+                )
             }
             val body = response.body?.string().orEmpty()
             if (body.isBlank()) throw SearchUnavailableException("Источник вернул пустой ответ")
@@ -145,14 +260,16 @@ class DoogleXMetaSearchRepository {
     }
 
     private companion object {
+        val GOOGLE_ENDPOINT = "https://customsearch.googleapis.com/customsearch/v1".toHttpUrl()
         val MOJEEK_ENDPOINT = "https://www.mojeek.com/search".toHttpUrl()
         val WIKIPEDIA_ENDPOINT = "https://ru.wikipedia.org/w/api.php".toHttpUrl()
         val GITHUB_ENDPOINT = "https://api.github.com/search/repositories".toHttpUrl()
-        const val USER_AGENT = "DoogleX/1.5 (Android; metasearch client)"
+        const val USER_AGENT = "DoogleX/1.6 (Android; metasearch client)"
     }
 }
 
 internal enum class MetaSource(val displayName: String, val weight: Double) {
+    GOOGLE("Google", 30.0),
     MOJEEK("Mojeek", 26.0),
     WIKIPEDIA("Wikipedia", 20.0),
     GITHUB("GitHub", 18.0),
@@ -162,6 +279,41 @@ internal data class MetaSourceResults(
     val source: MetaSource,
     val results: List<SearchResult>,
 )
+
+internal object GoogleParser {
+    fun parse(json: String): GoogleSearchPage {
+        val root = JSONObject(json)
+        val items = root.optJSONArray("items")
+        val results = buildList {
+            if (items != null) {
+                for (index in 0 until items.length()) {
+                    val item = items.optJSONObject(index) ?: continue
+                    createWebResult(
+                        title = item.optString("title").trim(),
+                        url = item.optString("link"),
+                        snippet = item.optString("snippet").trim(),
+                        source = MetaSource.GOOGLE.displayName,
+                    )?.let(::add)
+                }
+            }
+        }
+        val nextPages = root.optJSONObject("queries")?.optJSONArray("nextPage")
+        val nextStart = nextPages?.optJSONObject(0)?.optInt("startIndex")?.takeIf { it > 1 }
+        return GoogleSearchPage(results = results, nextStart = nextStart)
+    }
+}
+
+internal object GoogleSearchErrors {
+    fun message(error: Exception): String {
+        val code = (error as? SearchUnavailableException)?.httpCode
+        return when (code) {
+            400 -> "Google API отклонил запрос. Проверьте CX и включите поиск по всему вебу."
+            401, 403 -> "Google API недоступен. Проверьте ключ, включение API и квоту аккаунта."
+            429 -> "Лимит запросов Google API исчерпан. Остальные источники продолжают работать."
+            else -> "Google API не ответил. Проверьте сеть, DoH и параметры подключения."
+        }
+    }
+}
 
 internal object MojeekParser {
     fun parse(html: String, requestUrl: HttpUrl): List<SearchResult> {
@@ -262,7 +414,7 @@ internal object MetaSearchRanker {
                 val score = sourceResults.source.weight +
                     50.0 / (index + 1) +
                     lexicalScore(query, result)
-                val key = canonicalUrl(result.url)
+                val key = canonicalMetaSearchUrl(result.url)
                 val existing = merged[key]
                 if (existing == null) {
                     merged[key] = Candidate(result, score, mutableSetOf(sourceResults.source))
@@ -316,19 +468,55 @@ internal object MetaSearchRanker {
         return score
     }
 
-    private fun canonicalUrl(raw: String): String {
-        val url = raw.toHttpUrlOrNull() ?: return raw.trim()
-        val defaultPort = if (url.scheme == "https") 443 else 80
-        val port = if (url.port == defaultPort) "" else ":${url.port}"
-        val path = url.encodedPath.trimEnd('/')
-        val query = (0 until url.querySize)
-            .map { index -> url.queryParameterName(index) to url.queryParameterValue(index) }
-            .filterNot { (name, _) ->
-                name.startsWith("utm_") || name in setOf("fbclid", "gclid", "yclid")
+}
+
+internal fun canonicalMetaSearchUrl(raw: String): String {
+    val url = raw.toHttpUrlOrNull() ?: return raw.trim()
+    val defaultPort = if (url.scheme == "https") 443 else 80
+    val port = if (url.port == defaultPort) "" else ":${url.port}"
+    val path = url.encodedPath.trimEnd('/')
+    val query = (0 until url.querySize)
+        .map { index -> url.queryParameterName(index) to url.queryParameterValue(index) }
+        .filterNot { (name, _) ->
+            name.startsWith("utm_") || name in setOf("fbclid", "gclid", "yclid")
+        }
+        .sortedWith(compareBy<Pair<String, String?>> { it.first }.thenBy { it.second.orEmpty() })
+        .joinToString("&") { (name, value) -> "$name=${value.orEmpty()}" }
+    return "${url.host.removePrefix("www.")}$port$path|$query"
+}
+
+internal object MetaSearchResultMerger {
+    fun append(existing: List<SearchResult>, additional: List<SearchResult>): List<SearchResult> {
+        val merged = LinkedHashMap<String, SearchResult>()
+        existing.forEach { result -> merged[canonicalMetaSearchUrl(result.url)] = result }
+        additional.forEach { candidate ->
+            val key = canonicalMetaSearchUrl(candidate.url)
+            val previous = merged[key]
+            if (previous == null) {
+                merged[key] = candidate
+            } else {
+                val preferred = if (candidate.snippet.length > previous.snippet.length) {
+                    candidate
+                } else {
+                    previous
+                }
+                merged[key] = preferred.copy(
+                    source = combineSources(previous.source, candidate.source),
+                )
             }
-            .sortedWith(compareBy<Pair<String, String?>> { it.first }.thenBy { it.second.orEmpty() })
-            .joinToString("&") { (name, value) -> "$name=${value.orEmpty()}" }
-        return "${url.host.removePrefix("www.")}$port$path|$query"
+        }
+        return merged.values.toList()
+    }
+
+    private fun combineSources(first: String, second: String): String {
+        val labels = (first.split(" + ") + second.split(" + "))
+            .filter { it.isNotBlank() }
+            .toSet()
+        val known = MetaSource.entries.filter { it.displayName in labels }.map { it.displayName }
+        val unknown = labels.filterNot { label ->
+            MetaSource.entries.any { it.displayName == label }
+        }.sorted()
+        return (known + unknown).joinToString(" + ")
     }
 }
 

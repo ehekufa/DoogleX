@@ -27,6 +27,8 @@ data class StoredPreferences(
     val safeSearchEnabled: Boolean = true,
     val dohEnabled: Boolean = true,
     val dohProvider: DohProvider = DohProvider.CLOUDFLARE,
+    val googleApiKey: String = "",
+    val googleSearchEngineId: String = "",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val interfaceStyle: InterfaceStyle = InterfaceStyle.CLASSIC,
     val accentPalette: AccentPalette = AccentPalette.LIME,
@@ -43,6 +45,8 @@ class PreferencesStore(private val context: Context) {
     private val safeSearchEnabledKey = booleanPreferencesKey("safe_search_enabled")
     private val dohEnabledKey = booleanPreferencesKey("doh_enabled")
     private val dohProviderKey = stringPreferencesKey("doh_provider")
+    private val googleApiKeyKey = stringPreferencesKey("google_api_key")
+    private val googleSearchEngineIdKey = stringPreferencesKey("google_search_engine_id")
     private val themeModeKey = stringPreferencesKey("theme_mode")
     private val interfaceStyleKey = stringPreferencesKey("interface_style")
     private val accentPaletteKey = stringPreferencesKey("accent_palette")
@@ -70,6 +74,8 @@ class PreferencesStore(private val context: Context) {
             dohProvider = values[dohProviderKey]
                 ?.let { name -> runCatching { DohProvider.valueOf(name) }.getOrNull() }
                 ?: DohProvider.CLOUDFLARE,
+            googleApiKey = values[googleApiKeyKey].orEmpty(),
+            googleSearchEngineId = values[googleSearchEngineIdKey].orEmpty(),
             themeMode = values[themeModeKey]
                 ?.let { name -> runCatching { ThemeMode.valueOf(name) }.getOrNull() }
                 ?: ThemeMode.SYSTEM,
@@ -134,6 +140,13 @@ class PreferencesStore(private val context: Context) {
     suspend fun setDohProvider(provider: DohProvider) {
         context.doogleXDataStore.edit { values ->
             values[dohProviderKey] = provider.name
+        }
+    }
+
+    suspend fun setGoogleSearchConfig(apiKey: String, searchEngineId: String) {
+        context.doogleXDataStore.edit { values ->
+            values[googleApiKeyKey] = apiKey.trim()
+            values[googleSearchEngineIdKey] = searchEngineId.trim()
         }
     }
 
