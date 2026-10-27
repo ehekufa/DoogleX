@@ -1,0 +1,71 @@
+name: DoogleX Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "app/**"
+      - "gradle/**"
+      - "gradlew"
+      - "gradlew.bat"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/android-apk.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dooglex-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Test and build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 components
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run unit tests and assemble debug APK
+        run: ./gradlew --stacktrace testDebugUnitTest assembleDebug
+
+      - name: Prepare installable APK
+        run: |
+          mkdir -p artifact
+          cp app/build/outputs/apk/debug/app-debug.apk artifact/DoogleX-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DoogleX-APK
+          path: artifact/DoogleX-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Add download instructions to run summary
+        run: |
+          echo "## DoogleX APK готов" >> "$GITHUB_STEP_SUMMARY"
+          echo "Скачайте **DoogleX-APK** в разделе **Artifacts** ниже, распакуйте ZIP и установите APK на Android." >> "$GITHUB_STEP_SUMMARY"
+          echo "Это тестовая debug-сборка, подписанная стандартным Android debug-ключом." >> "$GITHUB_STEP_SUMMARY"
