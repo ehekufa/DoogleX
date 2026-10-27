@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.dooglex.app.model.AccentPalette
 import com.dooglex.app.model.DohProvider
+import com.dooglex.app.model.InterfaceStyle
 import com.dooglex.app.model.SearchResult
 import com.dooglex.app.model.ThemeMode
 import com.dooglex.app.model.WebPageSettings
@@ -27,6 +28,7 @@ data class StoredPreferences(
     val dohEnabled: Boolean = true,
     val dohProvider: DohProvider = DohProvider.CLOUDFLARE,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val interfaceStyle: InterfaceStyle = InterfaceStyle.CLASSIC,
     val accentPalette: AccentPalette = AccentPalette.LIME,
     val textScale: Float = 1f,
     val compactResults: Boolean = false,
@@ -42,6 +44,7 @@ class PreferencesStore(private val context: Context) {
     private val dohEnabledKey = booleanPreferencesKey("doh_enabled")
     private val dohProviderKey = stringPreferencesKey("doh_provider")
     private val themeModeKey = stringPreferencesKey("theme_mode")
+    private val interfaceStyleKey = stringPreferencesKey("interface_style")
     private val accentPaletteKey = stringPreferencesKey("accent_palette")
     private val textScaleKey = floatPreferencesKey("text_scale")
     private val compactResultsKey = booleanPreferencesKey("compact_results")
@@ -55,6 +58,7 @@ class PreferencesStore(private val context: Context) {
     private val webBlockTrackersKey = booleanPreferencesKey("web_block_trackers")
     private val webThirdPartyCookiesKey = booleanPreferencesKey("web_third_party_cookies")
     private val webKeepSessionKey = booleanPreferencesKey("web_keep_session")
+    private val webCompatibilityModeKey = booleanPreferencesKey("web_compatibility_mode")
 
     val preferences: Flow<StoredPreferences> = context.doogleXDataStore.data.map { values ->
         StoredPreferences(
@@ -69,6 +73,9 @@ class PreferencesStore(private val context: Context) {
             themeMode = values[themeModeKey]
                 ?.let { name -> runCatching { ThemeMode.valueOf(name) }.getOrNull() }
                 ?: ThemeMode.SYSTEM,
+            interfaceStyle = values[interfaceStyleKey]
+                ?.let { name -> runCatching { InterfaceStyle.valueOf(name) }.getOrNull() }
+                ?: InterfaceStyle.CLASSIC,
             accentPalette = values[accentPaletteKey]
                 ?.let { name -> runCatching { AccentPalette.valueOf(name) }.getOrNull() }
                 ?: AccentPalette.LIME,
@@ -85,6 +92,7 @@ class PreferencesStore(private val context: Context) {
                 blockTrackers = values[webBlockTrackersKey] ?: true,
                 thirdPartyCookiesEnabled = values[webThirdPartyCookiesKey] ?: false,
                 keepSession = values[webKeepSessionKey] ?: false,
+                compatibilityMode = values[webCompatibilityModeKey] ?: true,
             ),
         )
     }
@@ -135,6 +143,12 @@ class PreferencesStore(private val context: Context) {
         }
     }
 
+    suspend fun setInterfaceStyle(style: InterfaceStyle) {
+        context.doogleXDataStore.edit { values ->
+            values[interfaceStyleKey] = style.name
+        }
+    }
+
     suspend fun setAccentPalette(palette: AccentPalette) {
         context.doogleXDataStore.edit { values ->
             values[accentPaletteKey] = palette.name
@@ -170,6 +184,7 @@ class PreferencesStore(private val context: Context) {
             values[webBlockTrackersKey] = settings.blockTrackers
             values[webThirdPartyCookiesKey] = settings.thirdPartyCookiesEnabled
             values[webKeepSessionKey] = settings.keepSession
+            values[webCompatibilityModeKey] = settings.compatibilityMode
         }
     }
 

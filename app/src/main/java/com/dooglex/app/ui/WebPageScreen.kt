@@ -3,6 +3,7 @@ package com.dooglex.app.ui
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.webkit.CookieManager
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
@@ -14,6 +15,7 @@ import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebViewDatabase
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +26,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -49,11 +51,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -71,36 +75,188 @@ fun WebPageScreen(
     onClose: () -> Unit,
     onOpenExternal: (String) -> Unit,
 ) {
+    val context = LocalContext.current
+    val initialHost = Uri.parse(initialUrl).host
+    val firstTab = remember {
+        BrowserTab(FIRST_TAB_ID, initialHost ?: "DoogleX", initialUrl)
+    }
+    var tabs by remember { mutableStateOf(listOf(firstTab)) }
+    var activeTabId by remember { mutableLongStateOf(FIRST_TAB_ID) }
+    var nextTabId by remember { mutableLongStateOf(FIRST_TAB_ID + 1) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var currentUrl by remember { mutableStateOf(initialUrl) }
-    var pageTitle by remember { mutableStateOf(Uri.parse(initialUrl).host ?: "DoogleX") }
+    var pageTitle by remember { mutableStateOf(initialHost ?: "DoogleX") }
+    var addressInput by remember { mutableStateOf(initialUrl) }
+    var addressEditing by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
     var hasError by remember { mutableStateOf(false) }
     var blockedTrackers by remember { mutableIntStateOf(0) }
     val blockedTrackerCount = remember { AtomicInteger(0) }
-    val currentPageHost = remember { AtomicReference(Uri.parse(initialUrl).host) }
+    val currentPageHost = remember { AtomicReference(initialHost) }
     // Background request callbacks read only immutable snapshots from these references.
     val currentSettings = remember { AtomicReference(pageSettings) }
     val appliedSettings = remember { AtomicReference<WebPageSettings?>(null) }
     val defaultUserAgent = remember { AtomicReference("") }
+    val shownTab = tabs.firstOrNull { it.id == activeTabId } ?: tabs.first()
+
+    fun currentTab(): BrowserTab? = tabs.firstOrNull { it.id == activeTabId }
+
+    fun updateActiveUrl(url: String) {
+        tabs = tabs.map { tab ->
+            if (tab.id == activeTabId) tab.copy(url = url) else tab
+        }
+    }
+
+    fun updateActiveTitle(title: String) {
+        tabs = tabs.map { tab ->
+            if (tab.id == activeTabId) tab.copy(title = title) else tab
+        }
+    }
+
+    fun saveActivePage() {
+        val tab = currentTab() ?: return
+        val browser = webView ?: return
+        if (tab.url == null) return
+        val history = Bundle()
+        browser.saveState(history)
+        tabs = tabs.map { item ->
+            if (item.id == tab.id) {
+                item.copy(title = pageTitle, url = currentUrl, history = history)
+            } else {
+                item
+            }
+        }
+    }
+
+    fun displayTab(tab: BrowserTab) {
+        currentUrl = tab.url.orEmpty()
+        pageTitle = tab.title
+        addressInput = currentUrl
+        addressEditing = false
+        currentPageHost.set(tab.url?.let { Uri.parse(it).host })
+        blockedTrackerCount.set(0)
+        blockedTrackers = 0
+        hasError = false
+
+        val browser = webView ?: return
+        browser.stopLoading()
+        val targetUrl = tab.url
+        if (targetUrl == null) {
+            browser.clearHistory()
+            isLoading = false
+            return
+        }
+
+        isLoading = true
+        val restored = tab.history?.let { browser.restoreState(it) }
+        if (restored == null) {
+            browser.clearHistory()
+            browser.loadUrl(targetUrl)
+        }
+    }
+
+    fun selectTab(tab: BrowserTab) {
+        if (tab.id == activeTabId) return
+        saveActivePage()
+        activeTabId = tab.id
+        displayTab(tab)
+    }
+
+    fun openNewTab() {
+        if (tabs.size >= MAX_TABS) return
+        saveActivePage()
+        val newTab = BrowserTab(nextTabId, "Новая вкладка", null)
+        nextTabId++
+        tabs = tabs + newTab
+        activeTabId = newTab.id
+        displayTab(newTab)
+    }
+
+    fun closeTab(tab: BrowserTab) {
+        if (tabs.size <= 1) {
+            onClose()
+            return
+        }
+        val index = tabs.indexOfFirst { it.id == tab.id }
+        if (index < 0) return
+        val remaining = tabs.filterNot { it.id == tab.id }
+        if (tab.id != activeTabId) {
+            tabs = remaining
+            return
+        }
+
+        val target = remaining[index.coerceAtMost(remaining.lastIndex)]
+        tabs = remaining
+        activeTabId = target.id
+        displayTab(target)
+    }
 
     fun navigateBack() {
+        val tab = currentTab()
         val browser = webView
-        if (browser?.canGoBack() == true) browser.goBack() else onClose()
+        if (tab?.url != null && browser?.canGoBack() == true) {
+            browser.goBack()
+        } else if (tab != null && tabs.size > 1) {
+            closeTab(tab)
+        } else {
+            onClose()
+        }
+    }
+
+    fun submitAddress() {
+        val targetUrl = BrowserAddress.resolve(addressInput)
+        if (targetUrl == null) {
+            Toast.makeText(
+                context,
+                "Введите корректный HTTP/HTTPS URL или поисковый запрос",
+                Toast.LENGTH_SHORT,
+            ).show()
+            addressInput = currentUrl
+            addressEditing = false
+            return
+        }
+        val tab = currentTab() ?: return
+        val host = Uri.parse(targetUrl).host
+        tabs = tabs.map { item ->
+            if (item.id == tab.id) {
+                item.copy(title = host ?: "DoogleX", url = targetUrl, history = null)
+            } else {
+                item
+            }
+        }
+        currentUrl = targetUrl
+        pageTitle = host ?: "DoogleX"
+        addressInput = targetUrl
+        addressEditing = false
+        currentPageHost.set(host)
+        blockedTrackerCount.set(0)
+        blockedTrackers = 0
+        hasError = false
+        isLoading = true
+        webView?.stopLoading()
+        webView?.loadUrl(targetUrl)
     }
 
     fun resetPrivateSession() {
         val browser = webView ?: return
+        val sessionUrl = currentTab()?.url ?: initialUrl
         isLoading = true
         hasError = false
         CookieManager.getInstance().removeAllCookies {
             clearWebViewData(browser)
-            currentUrl = initialUrl
-            currentPageHost.set(Uri.parse(initialUrl).host)
-            pageTitle = Uri.parse(initialUrl).host ?: "DoogleX"
+            val host = Uri.parse(sessionUrl).host
+            val newTab = BrowserTab(nextTabId, host ?: "DoogleX", sessionUrl)
+            nextTabId++
+            tabs = listOf(newTab)
+            activeTabId = newTab.id
+            currentUrl = sessionUrl
+            currentPageHost.set(host)
+            pageTitle = host ?: "DoogleX"
+            addressInput = sessionUrl
+            addressEditing = false
             blockedTrackerCount.set(0)
             blockedTrackers = 0
-            browser.loadUrl(initialUrl)
+            browser.loadUrl(sessionUrl)
         }
     }
 
@@ -117,43 +273,53 @@ fun WebPageScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(64.dp)
-                        .padding(horizontal = 4.dp),
+                        .heightIn(min = 64.dp)
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = ::navigateBack) {
                         Icon(Icons.Outlined.ArrowBack, contentDescription = "Назад")
                     }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = pageTitle,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = currentUrl,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    BrowserAddressBar(
+                        value = addressInput,
+                        onValueChange = {
+                            addressInput = it
+                            addressEditing = true
+                        },
+                        onSubmit = ::submitAddress,
+                        onReset = {
+                            addressEditing = false
+                            addressInput = currentUrl
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
                     IconButton(
                         onClick = {
                             hasError = false
                             webView?.reload()
                         },
+                        enabled = shownTab.url != null,
                     ) {
                         Icon(Icons.Outlined.Refresh, contentDescription = "Обновить страницу")
                     }
-                    IconButton(onClick = { onOpenExternal(currentUrl) }) {
+                    IconButton(
+                        onClick = { onOpenExternal(currentUrl) },
+                        enabled = currentUrl.isNotBlank(),
+                    ) {
                         Icon(
                             Icons.Outlined.OpenInNew,
                             contentDescription = "Открыть во внешнем браузере",
                         )
                     }
                 }
+                BrowserTabStrip(
+                    tabs = tabs,
+                    activeTabId = activeTabId,
+                    canAddTab = tabs.size < MAX_TABS,
+                    onSelectTab = ::selectTab,
+                    onCloseTab = ::closeTab,
+                    onNewTab = ::openNewTab,
+                )
             }
         }
 
@@ -199,7 +365,7 @@ fun WebPageScreen(
             }
         }
 
-        if (isLoading) {
+        if (shownTab.url != null && isLoading) {
             LinearProgressIndicator(
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.primary,
@@ -216,9 +382,9 @@ fun WebPageScreen(
         ) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
-                factory = { context ->
+                factory = { viewContext ->
                     currentSettings.set(pageSettings)
-                    WebView(context).apply {
+                    WebView(viewContext).apply {
                         defaultUserAgent.set(settings.userAgentString)
                         settings.apply {
                             domStorageEnabled = true
@@ -259,7 +425,7 @@ fun WebPageScreen(
                             ): WebResourceResponse? {
                                 // This callback runs off the UI thread. Never call view.url here:
                                 // WebView.getUrl() enforces its creating thread on Android 14+.
-                                if (currentSettings.get().blockTrackers &&
+                                if (currentSettings.get().trackerBlockingActive &&
                                     !request.isForMainFrame &&
                                     TrackerBlocklist.shouldBlock(
                                         request.url.host,
@@ -284,20 +450,32 @@ fun WebPageScreen(
                                 url: String?,
                                 favicon: Bitmap?,
                             ) {
+                                if (currentTab()?.url == null) {
+                                    isLoading = false
+                                    return
+                                }
                                 isLoading = true
                                 hasError = false
                                 if (!url.isNullOrBlank()) {
                                     currentUrl = url
+                                    if (!addressEditing) addressInput = url
                                     currentPageHost.set(Uri.parse(url).host)
+                                    updateActiveUrl(url)
                                 }
                             }
 
                             override fun onPageFinished(view: WebView, url: String?) {
+                                if (currentTab()?.url == null) {
+                                    isLoading = false
+                                    return
+                                }
                                 isLoading = false
                                 blockedTrackers = blockedTrackerCount.get()
                                 if (!url.isNullOrBlank()) {
                                     currentUrl = url
+                                    if (!addressEditing) addressInput = url
                                     currentPageHost.set(Uri.parse(url).host)
+                                    updateActiveUrl(url)
                                 }
                             }
 
@@ -306,7 +484,7 @@ fun WebPageScreen(
                                 request: WebResourceRequest,
                                 error: WebResourceError,
                             ) {
-                                if (request.isForMainFrame) {
+                                if (request.isForMainFrame && currentTab()?.url != null) {
                                     isLoading = false
                                     hasError = true
                                 }
@@ -314,10 +492,17 @@ fun WebPageScreen(
                         }
                         webChromeClient = object : WebChromeClient() {
                             override fun onReceivedTitle(view: WebView, title: String?) {
-                                if (!title.isNullOrBlank()) pageTitle = title
+                                if (currentTab()?.url != null && !title.isNullOrBlank()) {
+                                    pageTitle = title
+                                    updateActiveTitle(title)
+                                }
                             }
 
                             override fun onProgressChanged(view: WebView, newProgress: Int) {
+                                if (currentTab()?.url == null) {
+                                    isLoading = false
+                                    return
+                                }
                                 blockedTrackers = blockedTrackerCount.get()
                                 if (newProgress == 100) isLoading = false
                             }
@@ -328,7 +513,7 @@ fun WebPageScreen(
                             }
                         }
                         webView = this
-                        loadUrl(initialUrl)
+                        currentTab()?.url?.let { loadUrl(it) }
                     }
                 },
                 update = { browser ->
@@ -336,7 +521,10 @@ fun WebPageScreen(
                     val previous = appliedSettings.getAndSet(pageSettings)
                     if (previous != pageSettings) {
                         applyWebPageSettings(browser, pageSettings, defaultUserAgent.get())
-                        if (previous != null && previous.requiresReloadFor(pageSettings)) {
+                        if (previous != null &&
+                            previous.requiresReloadFor(pageSettings) &&
+                            currentTab()?.url != null
+                        ) {
                             hasError = false
                             isLoading = true
                             browser.reload()
@@ -354,7 +542,9 @@ fun WebPageScreen(
                 },
             )
 
-            if (hasError) {
+            if (shownTab.url == null) {
+                NewTabPage()
+            } else if (hasError) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Column(
                         modifier = Modifier.padding(32.dp),
@@ -382,7 +572,7 @@ fun WebPageScreen(
                             modifier = Modifier.padding(top = 20.dp),
                         )
                         Text(
-                            text = "Проверьте подключение к интернету и попробуйте ещё раз.",
+                            text = "Проверьте URL и подключение к интернету. Можно повторить загрузку или открыть страницу во внешнем браузере.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
@@ -396,6 +586,9 @@ fun WebPageScreen(
                         ) {
                             Text("Повторить")
                         }
+                        TextButton(onClick = { onOpenExternal(currentUrl) }) {
+                            Text("Открыть во внешнем браузере")
+                        }
                     }
                 }
             }
@@ -404,15 +597,22 @@ fun WebPageScreen(
 }
 
 private fun privacyStatus(settings: WebPageSettings, blockedTrackers: Int): String {
-    if (settings.blockTrackers && blockedTrackers > 0) {
+    if (settings.trackerBlockingActive && blockedTrackers > 0) {
         return "Трекеров заблокировано: $blockedTrackers"
     }
-    val cookies = if (settings.thirdPartyCookiesEnabled) {
+    if (settings.compatibilityMode) {
+        return "HTTPS · совместимость: ресурсы сайтов не фильтруются"
+    }
+    val cookies = if (settings.thirdPartyCookiesAllowed) {
         "сторонние cookies разрешены"
     } else {
         "сторонние cookies запрещены"
     }
-    val trackers = if (settings.blockTrackers) "трекеры блокируются" else "трекеры разрешены"
+    val trackers = if (settings.trackerBlockingActive) {
+        "трекеры блокируются"
+    } else {
+        "трекеры разрешены"
+    }
     return "HTTPS · $cookies · $trackers"
 }
 
@@ -452,7 +652,7 @@ private fun applyWebPageSettings(
     }
     CookieManager.getInstance().setAcceptThirdPartyCookies(
         browser,
-        pageSettings.thirdPartyCookiesEnabled,
+        pageSettings.thirdPartyCookiesAllowed,
     )
 }
 
@@ -460,8 +660,13 @@ private fun WebPageSettings.requiresReloadFor(other: WebPageSettings): Boolean =
     desktopMode != other.desktopMode ||
         javaScriptEnabled != other.javaScriptEnabled ||
         imagesEnabled != other.imagesEnabled ||
-        forceDark != other.forceDark
+        forceDark != other.forceDark ||
+        compatibilityMode != other.compatibilityMode ||
+        blockTrackers != other.blockTrackers ||
+        thirdPartyCookiesEnabled != other.thirdPartyCookiesEnabled
 
+private const val FIRST_TAB_ID = 1L
+private const val MAX_TABS = 8
 private const val DESKTOP_USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"

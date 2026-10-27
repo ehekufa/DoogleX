@@ -13,6 +13,11 @@ enum class ThemeMode {
     DARK,
 }
 
+enum class InterfaceStyle {
+    CLASSIC,
+    DOOGLEX,
+}
+
 enum class AccentPalette {
     LIME,
     SKY,
@@ -45,7 +50,14 @@ data class WebPageSettings(
     val blockTrackers: Boolean = true,
     val thirdPartyCookiesEnabled: Boolean = false,
     val keepSession: Boolean = false,
-)
+    val compatibilityMode: Boolean = true,
+) {
+    val trackerBlockingActive: Boolean
+        get() = blockTrackers && !compatibilityMode
+
+    val thirdPartyCookiesAllowed: Boolean
+        get() = compatibilityMode || thirdPartyCookiesEnabled
+}
 
 sealed interface SearchUiState {
     data object Idle : SearchUiState
@@ -69,6 +81,7 @@ data class DoogleXUiState(
     val dohEnabled: Boolean = true,
     val dohProvider: DohProvider = DohProvider.CLOUDFLARE,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val interfaceStyle: InterfaceStyle = InterfaceStyle.CLASSIC,
     val accentPalette: AccentPalette = AccentPalette.LIME,
     val textScale: Float = 1f,
     val compactResults: Boolean = false,

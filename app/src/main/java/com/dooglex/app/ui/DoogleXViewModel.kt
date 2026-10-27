@@ -9,6 +9,7 @@ import com.dooglex.app.model.AccentPalette
 import com.dooglex.app.model.AppTab
 import com.dooglex.app.model.DohProvider
 import com.dooglex.app.model.DoogleXUiState
+import com.dooglex.app.model.InterfaceStyle
 import com.dooglex.app.model.SearchResult
 import com.dooglex.app.model.SearchUiState
 import com.dooglex.app.model.ThemeMode
@@ -41,6 +42,7 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
                         dohEnabled = preferences.dohEnabled,
                         dohProvider = preferences.dohProvider,
                         themeMode = preferences.themeMode,
+                        interfaceStyle = preferences.interfaceStyle,
                         accentPalette = preferences.accentPalette,
                         textScale = preferences.textScale,
                         compactResults = preferences.compactResults,
@@ -145,6 +147,11 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { preferencesStore.setThemeMode(mode) }
     }
 
+    fun setInterfaceStyle(style: InterfaceStyle) {
+        mutableUiState.update { it.copy(interfaceStyle = style) }
+        viewModelScope.launch { preferencesStore.setInterfaceStyle(style) }
+    }
+
     fun setAccentPalette(palette: AccentPalette) {
         mutableUiState.update { it.copy(accentPalette = palette) }
         viewModelScope.launch { preferencesStore.setAccentPalette(palette) }
@@ -176,6 +183,7 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
         mutableUiState.update {
             it.copy(
                 themeMode = ThemeMode.SYSTEM,
+                interfaceStyle = InterfaceStyle.CLASSIC,
                 accentPalette = AccentPalette.LIME,
                 textScale = 1f,
                 compactResults = false,
@@ -185,6 +193,7 @@ class DoogleXViewModel(application: Application) : AndroidViewModel(application)
         }
         viewModelScope.launch {
             preferencesStore.setThemeMode(ThemeMode.SYSTEM)
+            preferencesStore.setInterfaceStyle(InterfaceStyle.CLASSIC)
             preferencesStore.setAccentPalette(AccentPalette.LIME)
             preferencesStore.setTextScale(1f)
             preferencesStore.setCompactResults(false)

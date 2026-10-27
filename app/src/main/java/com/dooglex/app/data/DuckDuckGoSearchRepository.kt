@@ -77,7 +77,7 @@ class DuckDuckGoSearchRepository {
 
     private companion object {
         const val SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/"
-        const val USER_AGENT = "DoogleX/1.3 (Android; native search client)"
+        const val USER_AGENT = "DoogleX/1.4 (Android; native search client)"
     }
 }
 

@@ -81,6 +81,7 @@ import com.dooglex.app.model.AccentPalette
 import com.dooglex.app.model.AppTab
 import com.dooglex.app.model.DohProvider
 import com.dooglex.app.model.DoogleXUiState
+import com.dooglex.app.model.InterfaceStyle
 import com.dooglex.app.model.SearchResult
 import com.dooglex.app.model.SearchUiState
 import com.dooglex.app.model.ThemeMode
@@ -99,6 +100,7 @@ fun DoogleXApp(
     onDohEnabledChange: (Boolean) -> Unit,
     onDohProviderChange: (DohProvider) -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
+    onInterfaceStyleChange: (InterfaceStyle) -> Unit,
     onAccentPaletteChange: (AccentPalette) -> Unit,
     onTextScaleChange: (Float) -> Unit,
     onCompactResultsChange: (Boolean) -> Unit,
@@ -108,6 +110,15 @@ fun DoogleXApp(
     onClearHistory: () -> Unit,
 ) {
     val context = LocalContext.current
+
+    fun submitSearchOrAddress(value: String) {
+        val directUrl = BrowserAddress.directUrlOrNull(value)
+        if (directUrl != null) {
+            openWebsite(context, directUrl)
+        } else {
+            onSearch(value)
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -130,7 +141,7 @@ fun DoogleXApp(
                         SearchHomeScreen(
                             state = state,
                             onQueryChange = onQueryChange,
-                            onSearch = onSearch,
+                            onSearch = ::submitSearchOrAddress,
                             onSettingsClick = { onTabSelected(AppTab.SETTINGS) },
                             onClearHistory = onClearHistory,
                         )
@@ -138,7 +149,7 @@ fun DoogleXApp(
                         SearchResultsScreen(
                             state = state,
                             onQueryChange = onQueryChange,
-                            onSearch = onSearch,
+                            onSearch = ::submitSearchOrAddress,
                             onBackToHome = onBackToHome,
                             onOpenResult = { result -> openWebsite(context, result.url) },
                             onToggleSaved = onToggleSaved,
@@ -158,6 +169,7 @@ fun DoogleXApp(
                 AppTab.STYLE -> CustomizationScreen(
                     state = state,
                     onThemeModeChange = onThemeModeChange,
+                    onInterfaceStyleChange = onInterfaceStyleChange,
                     onAccentPaletteChange = onAccentPaletteChange,
                     onTextScaleChange = onTextScaleChange,
                     onCompactResultsChange = onCompactResultsChange,
@@ -321,7 +333,7 @@ private fun SearchHomeScreen(
 
         item {
             Text(
-                text = "Ищите прямо в приложении. Без аккаунтов, рекламы и браузерных вкладок.",
+                text = "Ищите или открывайте URL прямо в приложении. Сайты теперь можно просматривать во вкладках.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -496,7 +508,7 @@ private fun SearchField(
             .heightIn(min = 64.dp),
         placeholder = {
             Text(
-                "Что хотите найти?",
+                "Поиск или URL",
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -536,7 +548,7 @@ private fun SearchField(
                 ) {
                     Icon(
                         Icons.Outlined.ArrowForward,
-                        contentDescription = "Найти",
+                        contentDescription = "Найти или открыть URL",
                         tint = if (value.isNotBlank()) MaterialTheme.colorScheme.background
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
@@ -1133,12 +1145,16 @@ private fun SettingsScreen(
         item {
             SettingsSection(title = "Текущая защита страниц") {
                 InfoRow(
+                    label = "Совместимость сайтов",
+                    value = if (state.webSettings.compatibilityMode) "Включена" else "Строгий режим",
+                )
+                InfoRow(
                     label = "Сторонние cookies",
-                    value = if (state.webSettings.thirdPartyCookiesEnabled) "Разрешены" else "Заблокированы",
+                    value = if (state.webSettings.thirdPartyCookiesAllowed) "Разрешены" else "Заблокированы",
                 )
                 InfoRow(
                     label = "Известные трекеры",
-                    value = if (state.webSettings.blockTrackers) "Блокируются" else "Не блокируются",
+                    value = if (state.webSettings.trackerBlockingActive) "Блокируются" else "Не блокируются",
                 )
                 InfoRow(label = "HTTPS-only", value = "Всегда")
                 InfoRow(
@@ -1184,7 +1200,7 @@ private fun SettingsScreen(
 
         item {
             SettingsSection(title = "О приложении") {
-                InfoRow(label = "Версия", value = "1.3.0")
+                InfoRow(label = "Версия", value = "1.4.0")
                 InfoRow(label = "Источник выдачи", value = "DuckDuckGo")
                 TextButton(
                     onClick = onOpenPrivacyPolicy,

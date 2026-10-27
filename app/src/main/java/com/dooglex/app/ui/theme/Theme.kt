@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.dooglex.app.model.AccentPalette
+import com.dooglex.app.model.InterfaceStyle
 import com.dooglex.app.model.ThemeMode
 
 val Lime = Color(0xFFC9F57A)
@@ -55,6 +56,42 @@ private val DarkColors = darkColorScheme(
     outline = Color(0xFF3B473D),
     error = Color(0xFFFFB4AB),
 )
+
+private fun classicColors(darkTheme: Boolean) = if (darkTheme) {
+    darkColorScheme(
+        primary = Color(0xFFA8C7FA),
+        onPrimary = Color(0xFF062E6F),
+        primaryContainer = Color(0xFF0842A0),
+        onPrimaryContainer = Color(0xFFD3E3FD),
+        secondary = Color(0xFFBDC1C6),
+        onSecondary = Color(0xFF202124),
+        background = Color(0xFF202124),
+        onBackground = Color(0xFFE8EAED),
+        surface = Color(0xFF292A2D),
+        onSurface = Color(0xFFE8EAED),
+        surfaceVariant = Color(0xFF3C4043),
+        onSurfaceVariant = Color(0xFFBDC1C6),
+        outline = Color(0xFF5F6368),
+        error = Color(0xFFF28B82),
+    )
+} else {
+    lightColorScheme(
+        primary = Color(0xFF1A73E8),
+        onPrimary = Color.White,
+        primaryContainer = Color(0xFFD2E3FC),
+        onPrimaryContainer = Color(0xFF174EA6),
+        secondary = Color(0xFF5F6368),
+        onSecondary = Color.White,
+        background = Color.White,
+        onBackground = Color(0xFF202124),
+        surface = Color.White,
+        onSurface = Color(0xFF202124),
+        surfaceVariant = Color(0xFFF1F3F4),
+        onSurfaceVariant = Color(0xFF5F6368),
+        outline = Color(0xFFDADCE0),
+        error = Color(0xFFD93025),
+    )
+}
 
 data class AccentColorValues(
     val primary: Color,
@@ -174,6 +211,7 @@ private fun TextStyle.scaled(scale: Float): TextStyle = copy(
 @Composable
 fun DoogleXTheme(
     themeMode: ThemeMode,
+    interfaceStyle: InterfaceStyle = InterfaceStyle.CLASSIC,
     accentPalette: AccentPalette = AccentPalette.LIME,
     textScale: Float = 1f,
     content: @Composable () -> Unit,
@@ -184,12 +222,16 @@ fun DoogleXTheme(
         ThemeMode.DARK -> true
     }
     val accent = accentColors(accentPalette, darkTheme)
-    val colors = (if (darkTheme) DarkColors else LightColors).copy(
-        primary = accent.primary,
-        onPrimary = accent.onPrimary,
-        primaryContainer = accent.container,
-        onPrimaryContainer = accent.onContainer,
-    )
+    val colors = if (interfaceStyle == InterfaceStyle.CLASSIC) {
+        classicColors(darkTheme)
+    } else {
+        (if (darkTheme) DarkColors else LightColors).copy(
+            primary = accent.primary,
+            onPrimary = accent.onPrimary,
+            primaryContainer = accent.container,
+            onPrimaryContainer = accent.onContainer,
+        )
+    }
     val typography = remember(textScale) {
         val scale = textScale.coerceIn(0.85f, 1.4f)
         DoogleXTypography.copy(

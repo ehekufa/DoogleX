@@ -21,6 +21,7 @@ class MainActivity : ComponentActivity() {
 
             DoogleXTheme(
                 themeMode = uiState.themeMode,
+                interfaceStyle = uiState.interfaceStyle,
                 accentPalette = uiState.accentPalette,
                 textScale = uiState.textScale,
             ) {
@@ -36,6 +37,7 @@ class MainActivity : ComponentActivity() {
                     onDohEnabledChange = doogleXViewModel::setDohEnabled,
                     onDohProviderChange = doogleXViewModel::setDohProvider,
                     onThemeModeChange = doogleXViewModel::setThemeMode,
+                    onInterfaceStyleChange = doogleXViewModel::setInterfaceStyle,
                     onAccentPaletteChange = doogleXViewModel::setAccentPalette,
                     onTextScaleChange = doogleXViewModel::setTextScale,
                     onCompactResultsChange = doogleXViewModel::setCompactResults,

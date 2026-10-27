@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -39,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dooglex.app.model.AccentPalette
 import com.dooglex.app.model.DoogleXUiState
+import com.dooglex.app.model.InterfaceStyle
 import com.dooglex.app.model.ThemeMode
 import com.dooglex.app.model.WebPageSettings
 import com.dooglex.app.ui.theme.accentColors
@@ -48,6 +51,7 @@ import kotlin.math.roundToInt
 fun CustomizationScreen(
     state: DoogleXUiState,
     onThemeModeChange: (ThemeMode) -> Unit,
+    onInterfaceStyleChange: (InterfaceStyle) -> Unit,
     onAccentPaletteChange: (AccentPalette) -> Unit,
     onTextScaleChange: (Float) -> Unit,
     onCompactResultsChange: (Boolean) -> Unit,
@@ -68,6 +72,36 @@ fun CustomizationScreen(
                 Text(
                     "Настрой DoogleX под себя. Всё сохраняется на устройстве.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        item {
+            SettingsSection(title = "Оформление") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ThemeOption(
+                        label = "Классика",
+                        icon = Icons.Outlined.Public,
+                        selected = state.interfaceStyle == InterfaceStyle.CLASSIC,
+                        onClick = { onInterfaceStyleChange(InterfaceStyle.CLASSIC) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    ThemeOption(
+                        label = "DoogleX",
+                        icon = Icons.Outlined.Palette,
+                        selected = state.interfaceStyle == InterfaceStyle.DOOGLEX,
+                        onClick = { onInterfaceStyleChange(InterfaceStyle.DOOGLEX) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Text(
+                    if (state.interfaceStyle == InterfaceStyle.CLASSIC) {
+                        "Нейтральный фон и синий акцент в стиле классических браузеров."
+                    } else {
+                        "Фирменный фон DoogleX и выбранная акцентная палитра."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -101,21 +135,23 @@ fun CustomizationScreen(
             }
         }
 
-        item {
-            SettingsSection(title = "Акцентный цвет") {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AccentPalette.entries.chunked(3).forEach { rowPalettes ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            rowPalettes.forEach { palette ->
-                                AccentChoice(
-                                    palette = palette,
-                                    selected = state.accentPalette == palette,
-                                    onClick = { onAccentPaletteChange(palette) },
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                            repeat(3 - rowPalettes.size) {
-                                Spacer(Modifier.weight(1f))
+        if (state.interfaceStyle == InterfaceStyle.DOOGLEX) {
+            item {
+                SettingsSection(title = "Акцентный цвет") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AccentPalette.entries.chunked(3).forEach { rowPalettes ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                rowPalettes.forEach { palette ->
+                                    AccentChoice(
+                                        palette = palette,
+                                        selected = state.accentPalette == palette,
+                                        onClick = { onAccentPaletteChange(palette) },
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                                repeat(3 - rowPalettes.size) {
+                                    Spacer(Modifier.weight(1f))
+                                }
                             }
                         }
                     }
@@ -211,23 +247,39 @@ fun CustomizationScreen(
         }
 
         item {
-            SettingsSection(title = "Приватность страниц") {
+            SettingsSection(title = "Совместимость и приватность") {
                 SettingsSwitchRow(
-                    title = "Блокировать трекеры",
-                    description = "Встроенный список рекламы и аналитики",
-                    checked = webSettings.blockTrackers,
+                    title = "Совместимость сайтов",
+                    description = "Не фильтровать ресурсы и разрешать сторонние cookies для корректной работы GitHub и других сайтов",
+                    checked = webSettings.compatibilityMode,
                     onCheckedChange = { enabled ->
-                        onWebSettingsChange(webSettings.copy(blockTrackers = enabled))
+                        onWebSettingsChange(webSettings.copy(compatibilityMode = enabled))
                     },
                 )
-                SettingsSwitchRow(
-                    title = "Сторонние cookies",
-                    description = "Разрешить cookies других доменов — менее приватно",
-                    checked = webSettings.thirdPartyCookiesEnabled,
-                    onCheckedChange = { enabled ->
-                        onWebSettingsChange(webSettings.copy(thirdPartyCookiesEnabled = enabled))
-                    },
-                )
+                if (webSettings.compatibilityMode) {
+                    Text(
+                        "HTTPS, запрет разрешений устройства и очистка новой сессии продолжают работать.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    SettingsSwitchRow(
+                        title = "Блокировать трекеры",
+                        description = "Строгий фильтр рекламы и аналитики; может ломать некоторые сайты",
+                        checked = webSettings.blockTrackers,
+                        onCheckedChange = { enabled ->
+                            onWebSettingsChange(webSettings.copy(blockTrackers = enabled))
+                        },
+                    )
+                    SettingsSwitchRow(
+                        title = "Сторонние cookies",
+                        description = "Разрешить cookies других доменов — менее приватно",
+                        checked = webSettings.thirdPartyCookiesEnabled,
+                        onCheckedChange = { enabled ->
+                            onWebSettingsChange(webSettings.copy(thirdPartyCookiesEnabled = enabled))
+                        },
+                    )
+                }
                 SettingsSwitchRow(
                     title = "Сохранять сессию",
                     description = "Не очищать cookies и кэш при закрытии страницы",

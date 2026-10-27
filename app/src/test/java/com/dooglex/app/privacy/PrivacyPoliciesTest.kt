@@ -32,4 +32,16 @@ class PrivacyPoliciesTest {
         assertFalse(TrackerBlocklist.shouldBlock("cdn.example.org", "example.org"))
         assertFalse(TrackerBlocklist.shouldBlock(null, "example.org"))
     }
+
+    @Test
+    fun `compatibility mode allows website resources while strict mode keeps controls`() {
+        val compatibility = WebPageSettings()
+        assertTrue(compatibility.compatibilityMode)
+        assertFalse(compatibility.trackerBlockingActive)
+        assertTrue(compatibility.thirdPartyCookiesAllowed)
+
+        val strict = compatibility.copy(compatibilityMode = false)
+        assertTrue(strict.trackerBlockingActive)
+        assertFalse(strict.thirdPartyCookiesAllowed)
+    }
 }

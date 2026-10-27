@@ -39,6 +39,7 @@ class WebActivity : ComponentActivity() {
             )
             DoogleXTheme(
                 themeMode = preferences.themeMode,
+                interfaceStyle = preferences.interfaceStyle,
                 accentPalette = preferences.accentPalette,
                 textScale = preferences.textScale,
             ) {
