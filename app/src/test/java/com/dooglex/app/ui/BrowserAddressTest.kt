@@ -1,7 +1,9 @@
 package com.dooglex.app.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BrowserAddressTest {
@@ -31,6 +33,14 @@ class BrowserAddressTest {
             "https://duckduckgo.com/?q=DoogleX%20browser",
             BrowserAddress.resolve("DoogleX browser"),
         )
+    }
+
+    @Test
+    fun `shows DoogleX branding only on real DuckDuckGo hosts`() {
+        assertTrue(isDuckDuckGoUrl("https://duckduckgo.com/?q=test"))
+        assertTrue(isDuckDuckGoUrl("https://html.duckduckgo.com/html/?q=test"))
+        assertFalse(isDuckDuckGoUrl("https://duckduckgo.com.evil.example/?q=test"))
+        assertFalse(isDuckDuckGoUrl("https://example.org/?q=duckduckgo.com"))
     }
 
     @Test

@@ -44,3 +44,8 @@ internal object BrowserAddress {
     private fun String.looksLikeAddress(): Boolean =
         contains('.') || contains(':') || equals("localhost", ignoreCase = true)
 }
+
+internal fun isDuckDuckGoUrl(rawUrl: String): Boolean {
+    val host = runCatching { URI(rawUrl).host?.lowercase() }.getOrNull() ?: return false
+    return host == "duckduckgo.com" || host.endsWith(".duckduckgo.com")
+}
