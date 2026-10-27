@@ -1,5 +1,6 @@
 package com.dooglex.app.privacy
 
+import com.dooglex.app.model.WebPageSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

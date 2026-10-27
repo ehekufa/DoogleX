@@ -1,8 +1,10 @@
 package com.dooglex.app.data
 
+import com.dooglex.app.model.DohProvider
 import com.dooglex.app.model.SearchResult
 import java.io.IOException
 import java.net.InetAddress
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,15 +24,22 @@ class DuckDuckGoSearchRepository {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    private val dohClient by lazy {
+    private val dohClients = ConcurrentHashMap<DohProvider, OkHttpClient>()
+
+    private fun dohClient(provider: DohProvider): OkHttpClient = dohClients.getOrPut(provider) {
+        val (endpoint, bootstrapHosts) = when (provider) {
+            DohProvider.CLOUDFLARE ->
+                "https://cloudflare-dns.com/dns-query" to listOf("1.1.1.1", "1.0.0.1")
+            DohProvider.GOOGLE ->
+                "https://dns.google/dns-query" to listOf("8.8.8.8", "8.8.4.4")
+            DohProvider.QUAD9 ->
+                "https://dns.quad9.net/dns-query" to listOf("9.9.9.9", "149.112.112.112")
+        }
         val dns = DnsOverHttps.Builder()
             .client(systemDnsClient)
-            .url(DOH_ENDPOINT.toHttpUrl())
+            .url(endpoint.toHttpUrl())
             // Numeric bootstrap addresses avoid a system-DNS lookup for the DoH resolver itself.
-            .bootstrapDnsHosts(
-                InetAddress.getByName("1.1.1.1"),
-                InetAddress.getByName("1.0.0.1"),
-            )
+            .bootstrapDnsHosts(*bootstrapHosts.map { InetAddress.getByName(it) }.toTypedArray())
             .post(true)
             .resolvePrivateAddresses(false)
             .build()
@@ -41,8 +50,9 @@ class DuckDuckGoSearchRepository {
         query: String,
         safeSearch: Boolean,
         useDoh: Boolean,
+        dohProvider: DohProvider,
     ): List<SearchResult> = withContext(Dispatchers.IO) {
-        val client = if (useDoh) dohClient else systemDnsClient
+        val client = if (useDoh) dohClient(dohProvider) else systemDnsClient
         val url = SEARCH_ENDPOINT.toHttpUrl().newBuilder()
             .addQueryParameter("q", query)
             .addQueryParameter("kp", if (safeSearch) "1" else "-2")
@@ -67,8 +77,7 @@ class DuckDuckGoSearchRepository {
 
     private companion object {
         const val SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/"
-        const val DOH_ENDPOINT = "https://cloudflare-dns.com/dns-query"
-        const val USER_AGENT = "DoogleX/1.2 (Android; native search client)"
+        const val USER_AGENT = "DoogleX/1.3 (Android; native search client)"
     }
 }
 

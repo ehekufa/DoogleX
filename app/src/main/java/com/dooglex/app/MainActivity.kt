@@ -19,7 +19,11 @@ class MainActivity : ComponentActivity() {
             val doogleXViewModel: DoogleXViewModel = viewModel()
             val uiState by doogleXViewModel.uiState.collectAsState()
 
-            DoogleXTheme(themeMode = uiState.themeMode) {
+            DoogleXTheme(
+                themeMode = uiState.themeMode,
+                accentPalette = uiState.accentPalette,
+                textScale = uiState.textScale,
+            ) {
                 DoogleXApp(
                     state = uiState,
                     onQueryChange = doogleXViewModel::onQueryChange,
@@ -30,7 +34,14 @@ class MainActivity : ComponentActivity() {
                     onHistoryEnabledChange = doogleXViewModel::setHistoryEnabled,
                     onSafeSearchChange = doogleXViewModel::setSafeSearchEnabled,
                     onDohEnabledChange = doogleXViewModel::setDohEnabled,
+                    onDohProviderChange = doogleXViewModel::setDohProvider,
                     onThemeModeChange = doogleXViewModel::setThemeMode,
+                    onAccentPaletteChange = doogleXViewModel::setAccentPalette,
+                    onTextScaleChange = doogleXViewModel::setTextScale,
+                    onCompactResultsChange = doogleXViewModel::setCompactResults,
+                    onShowSuggestionsChange = doogleXViewModel::setShowSuggestions,
+                    onWebSettingsChange = doogleXViewModel::setWebSettings,
+                    onResetCustomization = doogleXViewModel::resetCustomization,
                     onClearHistory = doogleXViewModel::clearHistory,
                 )
             }

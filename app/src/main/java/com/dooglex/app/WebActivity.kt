@@ -37,9 +37,14 @@ class WebActivity : ComponentActivity() {
             val preferences by preferencesStore.preferences.collectAsState(
                 initial = StoredPreferences(),
             )
-            DoogleXTheme(themeMode = preferences.themeMode) {
+            DoogleXTheme(
+                themeMode = preferences.themeMode,
+                accentPalette = preferences.accentPalette,
+                textScale = preferences.textScale,
+            ) {
                 WebPageScreen(
                     initialUrl = secureInitialUrl,
+                    pageSettings = preferences.webSettings,
                     onClose = { finish() },
                     onOpenExternal = { url -> openExternal(url) },
                 )

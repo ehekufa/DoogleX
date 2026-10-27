@@ -35,12 +35,11 @@ import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
@@ -67,7 +66,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -79,13 +77,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dooglex.app.WebActivity
+import com.dooglex.app.model.AccentPalette
 import com.dooglex.app.model.AppTab
+import com.dooglex.app.model.DohProvider
 import com.dooglex.app.model.DoogleXUiState
 import com.dooglex.app.model.SearchResult
 import com.dooglex.app.model.SearchUiState
 import com.dooglex.app.model.ThemeMode
-import com.dooglex.app.ui.theme.Ink
-import com.dooglex.app.ui.theme.Lime
+import com.dooglex.app.model.WebPageSettings
 
 @Composable
 fun DoogleXApp(
@@ -98,7 +97,14 @@ fun DoogleXApp(
     onHistoryEnabledChange: (Boolean) -> Unit,
     onSafeSearchChange: (Boolean) -> Unit,
     onDohEnabledChange: (Boolean) -> Unit,
+    onDohProviderChange: (DohProvider) -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
+    onAccentPaletteChange: (AccentPalette) -> Unit,
+    onTextScaleChange: (Float) -> Unit,
+    onCompactResultsChange: (Boolean) -> Unit,
+    onShowSuggestionsChange: (Boolean) -> Unit,
+    onWebSettingsChange: (WebPageSettings) -> Unit,
+    onResetCustomization: () -> Unit,
     onClearHistory: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -136,6 +142,7 @@ fun DoogleXApp(
                             onBackToHome = onBackToHome,
                             onOpenResult = { result -> openWebsite(context, result.url) },
                             onToggleSaved = onToggleSaved,
+                            compact = state.compactResults,
                         )
                     }
                 }
@@ -145,6 +152,18 @@ fun DoogleXApp(
                     onOpenResult = { result -> openWebsite(context, result.url) },
                     onToggleSaved = onToggleSaved,
                     onExploreClick = { onTabSelected(AppTab.SEARCH) },
+                    compact = state.compactResults,
+                )
+
+                AppTab.STYLE -> CustomizationScreen(
+                    state = state,
+                    onThemeModeChange = onThemeModeChange,
+                    onAccentPaletteChange = onAccentPaletteChange,
+                    onTextScaleChange = onTextScaleChange,
+                    onCompactResultsChange = onCompactResultsChange,
+                    onShowSuggestionsChange = onShowSuggestionsChange,
+                    onWebSettingsChange = onWebSettingsChange,
+                    onResetCustomization = onResetCustomization,
                 )
 
                 AppTab.SETTINGS -> SettingsScreen(
@@ -152,7 +171,7 @@ fun DoogleXApp(
                     onHistoryEnabledChange = onHistoryEnabledChange,
                     onSafeSearchChange = onSafeSearchChange,
                     onDohEnabledChange = onDohEnabledChange,
-                    onThemeModeChange = onThemeModeChange,
+                    onDohProviderChange = onDohProviderChange,
                     onClearHistory = onClearHistory,
                     onOpenPrivacyPolicy = {
                         openWebsite(context, "https://duckduckgo.com/privacy")
@@ -181,7 +200,12 @@ private fun DoogleXBottomBar(
             selected = selectedTab == AppTab.SEARCH,
             onClick = { onTabSelected(AppTab.SEARCH) },
             icon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-            label = { Text("Поиск") },
+            label = { Text(
+                "Поиск",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall,
+            ) },
             colors = navigationItemColors(),
         )
         NavigationBarItem(
@@ -193,14 +217,36 @@ private fun DoogleXBottomBar(
                     contentDescription = null,
                 )
             },
-            label = { Text("Закладки") },
+            label = { Text(
+                "Закладки",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall,
+            ) },
+            colors = navigationItemColors(),
+        )
+        NavigationBarItem(
+            selected = selectedTab == AppTab.STYLE,
+            onClick = { onTabSelected(AppTab.STYLE) },
+            icon = { Icon(Icons.Outlined.Palette, contentDescription = null) },
+            label = { Text(
+                "Стиль",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall,
+            ) },
             colors = navigationItemColors(),
         )
         NavigationBarItem(
             selected = selectedTab == AppTab.SETTINGS,
             onClick = { onTabSelected(AppTab.SETTINGS) },
             icon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
-            label = { Text("Настройки") },
+            label = { Text(
+                "Настройки",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall,
+            ) },
             colors = navigationItemColors(),
         )
     }
@@ -208,9 +254,9 @@ private fun DoogleXBottomBar(
 
 @Composable
 private fun navigationItemColors() = NavigationBarItemDefaults.colors(
-    selectedIconColor = Ink,
+    selectedIconColor = MaterialTheme.colorScheme.onPrimary,
     selectedTextColor = MaterialTheme.colorScheme.onSurface,
-    indicatorColor = Lime,
+    indicatorColor = MaterialTheme.colorScheme.primary,
     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
 )
@@ -289,24 +335,26 @@ private fun SearchHomeScreen(
             )
         }
 
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "ПОПРОБУЙТЕ",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    suggestions.forEach { suggestion ->
-                        SuggestionChip(
-                            text = suggestion,
-                            onClick = { onSearch(suggestion) },
-                        )
+        if (state.showSuggestions) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "ПОПРОБУЙТЕ",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        suggestions.forEach { suggestion ->
+                            SuggestionChip(
+                                text = suggestion,
+                                onClick = { onSearch(suggestion) },
+                            )
+                        }
                     }
                 }
             }
@@ -401,12 +449,12 @@ private fun DoogleXLogo() {
         Box(
             modifier = Modifier
                 .size(38.dp)
-                .background(Lime, RoundedCornerShape(12.dp)),
+                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = "X",
-                color = Ink,
+                color = MaterialTheme.colorScheme.onPrimary,
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Black,
             )
@@ -534,7 +582,7 @@ private fun SuggestionChip(text: String, onClick: () -> Unit) {
 private fun NativePrivacyCard() {
     Surface(
         shape = RoundedCornerShape(26.dp),
-        color = Ink,
+        color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Column(
             modifier = Modifier.padding(22.dp),
@@ -544,32 +592,32 @@ private fun NativePrivacyCard() {
                 Box(
                     modifier = Modifier
                         .size(42.dp)
-                        .background(Lime.copy(alpha = 0.15f), CircleShape),
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Outlined.Shield,
                         contentDescription = null,
-                        tint = Lime,
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
                 Spacer(Modifier.width(12.dp))
                 Text(
                     text = "Только необходимое",
                     style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
             Text(
                 text = "История и закладки хранятся только на телефоне. У DoogleX нет собственного сервера с вашими запросами.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.72f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Text(
                 text = "Выдачу предоставляет DuckDuckGo. При поиске применяется его политика конфиденциальности.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Lime,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
     }
@@ -583,6 +631,7 @@ private fun SearchResultsScreen(
     onBackToHome: () -> Unit,
     onOpenResult: (SearchResult) -> Unit,
     onToggleSaved: (SearchResult) -> Unit,
+    compact: Boolean,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -638,6 +687,7 @@ private fun SearchResultsScreen(
                             saved = state.savedResults.any { it.url == result.url },
                             onClick = { onOpenResult(result) },
                             onToggleSaved = { onToggleSaved(result) },
+                            compact = compact,
                         )
                     }
                 }
@@ -714,6 +764,7 @@ private fun ResultCard(
     saved: Boolean,
     onClick: () -> Unit,
     onToggleSaved: () -> Unit,
+    compact: Boolean,
 ) {
     Card(
         onClick = onClick,
@@ -726,11 +777,11 @@ private fun ResultCard(
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
+        Column(modifier = Modifier.padding(if (compact) 12.dp else 18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(if (compact) 27.dp else 32.dp)
                         .background(
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
                             CircleShape,
@@ -762,23 +813,26 @@ private fun ResultCard(
                     )
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(if (compact) 6.dp else 10.dp))
             Text(
                 text = result.title,
-                style = MaterialTheme.typography.titleLarge,
+                style = if (compact) MaterialTheme.typography.titleMedium
+                else MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
+                maxLines = if (compact) 2 else 3,
+                overflow = TextOverflow.Ellipsis,
             )
             if (result.snippet.isNotBlank()) {
-                Spacer(Modifier.height(7.dp))
+                Spacer(Modifier.height(if (compact) 4.dp else 7.dp))
                 Text(
                     text = result.snippet,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 4,
+                    maxLines = if (compact) 2 else 4,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "Открыть сайт",
@@ -842,8 +896,8 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
             onClick = onRetry,
             label = { Text("Повторить") },
             colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = Lime,
-                selectedLabelColor = Ink,
+                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ),
         )
     }
@@ -855,6 +909,7 @@ private fun SavedScreen(
     onOpenResult: (SearchResult) -> Unit,
     onToggleSaved: (SearchResult) -> Unit,
     onExploreClick: () -> Unit,
+    compact: Boolean,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -892,6 +947,7 @@ private fun SavedScreen(
                     saved = true,
                     onClick = { onOpenResult(result) },
                     onToggleSaved = { onToggleSaved(result) },
+                    compact = compact,
                 )
             }
         }
@@ -941,8 +997,8 @@ private fun EmptyState(
                 onClick = onAction,
                 label = { Text(actionLabel) },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Lime,
-                    selectedLabelColor = Ink,
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 ),
             )
         }
@@ -955,7 +1011,7 @@ private fun SettingsScreen(
     onHistoryEnabledChange: (Boolean) -> Unit,
     onSafeSearchChange: (Boolean) -> Unit,
     onDohEnabledChange: (Boolean) -> Unit,
-    onThemeModeChange: (ThemeMode) -> Unit,
+    onDohProviderChange: (DohProvider) -> Unit,
     onClearHistory: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
 ) {
@@ -976,40 +1032,43 @@ private fun SettingsScreen(
         }
 
         item {
-            SettingsSection(title = "Внешний вид") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ThemeOption(
-                        label = "Система",
-                        icon = Icons.Outlined.Settings,
-                        selected = state.themeMode == ThemeMode.SYSTEM,
-                        onClick = { onThemeModeChange(ThemeMode.SYSTEM) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    ThemeOption(
-                        label = "Светлая",
-                        icon = Icons.Outlined.LightMode,
-                        selected = state.themeMode == ThemeMode.LIGHT,
-                        onClick = { onThemeModeChange(ThemeMode.LIGHT) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    ThemeOption(
-                        label = "Тёмная",
-                        icon = Icons.Outlined.DarkMode,
-                        selected = state.themeMode == ThemeMode.DARK,
-                        onClick = { onThemeModeChange(ThemeMode.DARK) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        }
-
-        item {
             SettingsSection(title = "Защита соединения") {
                 SettingsSwitchRow(
                     title = "DNS over HTTPS",
-                    description = "DNS нативного поиска через Cloudflare, без обычного DNS провайдера",
+                    description = "DNS нативного поиска через ${state.dohProvider.displayName()}, без обычного DNS провайдера",
                     checked = state.dohEnabled,
                     onCheckedChange = onDohEnabledChange,
+                )
+                Text(
+                    "Провайдер DoH",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    DohProvider.entries.forEach { provider ->
+                        FilterChip(
+                            selected = state.dohProvider == provider,
+                            onClick = { onDohProviderChange(provider) },
+                            modifier = Modifier.weight(1f),
+                            label = {
+                                Text(
+                                    provider.displayName(),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            ),
+                        )
+                    }
+                }
+                Text(
+                    text = state.dohProvider.privacyNote(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.65f))
                 InfoRow(label = "Шифрование запросов", value = "TLS / HTTPS")
@@ -1072,14 +1131,23 @@ private fun SettingsScreen(
         }
 
         item {
-            SettingsSection(title = "Приватность страниц") {
-                InfoRow(label = "Сторонние cookies", value = "Заблокированы")
-                InfoRow(label = "Известные трекеры", value = "Блокируются")
+            SettingsSection(title = "Текущая защита страниц") {
+                InfoRow(
+                    label = "Сторонние cookies",
+                    value = if (state.webSettings.thirdPartyCookiesEnabled) "Разрешены" else "Заблокированы",
+                )
+                InfoRow(
+                    label = "Известные трекеры",
+                    value = if (state.webSettings.blockTrackers) "Блокируются" else "Не блокируются",
+                )
                 InfoRow(label = "HTTPS-only", value = "Всегда")
-                InfoRow(label = "Cookies, кэш и история", value = "Удаляются")
+                InfoRow(
+                    label = "Данные при закрытии",
+                    value = if (state.webSettings.keepSession) "Сохраняются" else "Удаляются",
+                )
                 InfoRow(label = "Демонстрация экрана", value = "Разрешена")
                 Text(
-                    text = "Кнопка «Новая сессия» на открытой странице очищает данные и загружает её заново. Это не смена IP-адреса и не полная защита от fingerprinting.",
+                    text = "Параметры страниц меняются во вкладке «Стиль». «Новая сессия» очищает данные и загружает сайт заново. Это не смена IP-адреса и не полная защита от fingerprinting.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 10.dp),
@@ -1116,7 +1184,7 @@ private fun SettingsScreen(
 
         item {
             SettingsSection(title = "О приложении") {
-                InfoRow(label = "Версия", value = "1.2.2")
+                InfoRow(label = "Версия", value = "1.3.0")
                 InfoRow(label = "Источник выдачи", value = "DuckDuckGo")
                 TextButton(
                     onClick = onOpenPrivacyPolicy,
@@ -1136,7 +1204,7 @@ private fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsSection(
+internal fun SettingsSection(
     title: String,
     content: @Composable () -> Unit,
 ) {
@@ -1163,7 +1231,7 @@ private fun SettingsSection(
 }
 
 @Composable
-private fun ThemeOption(
+internal fun ThemeOption(
     label: String,
     icon: ImageVector,
     selected: Boolean,
@@ -1173,8 +1241,10 @@ private fun ThemeOption(
     Surface(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = if (selected) Lime else MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = if (selected) Ink else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+        else MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
         Column(
             modifier = Modifier.padding(vertical = 13.dp),
@@ -1188,7 +1258,7 @@ private fun ThemeOption(
 }
 
 @Composable
-private fun SettingsSwitchRow(
+internal fun SettingsSwitchRow(
     title: String,
     description: String,
     checked: Boolean,
@@ -1229,6 +1299,15 @@ private fun InfoRow(label: String, value: String) {
         Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }
+
+private fun DohProvider.displayName(): String = when (this) {
+    DohProvider.CLOUDFLARE -> "Cloudflare"
+    DohProvider.GOOGLE -> "Google"
+    DohProvider.QUAD9 -> "Quad9"
+}
+
+private fun DohProvider.privacyNote(): String =
+    "${displayName()} обрабатывает DNS-запросы нативного поиска. При ошибке DoH поиск останавливается: скрытого возврата к обычному DNS нет."
 
 private fun formatResultCount(count: Int): String {
     val lastTwo = count % 100
