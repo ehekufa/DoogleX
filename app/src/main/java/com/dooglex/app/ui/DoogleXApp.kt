@@ -1317,10 +1317,10 @@ private fun SettingsScreen(
 
         item {
             SettingsSection(title = "О приложении") {
-                InfoRow(label = "Версия", value = "1.7.1")
+                InfoRow(label = "Версия", value = "1.8.0")
                 InfoRow(label = "Поиск", value = "DoogleX × DuckDuckGo")
                 Text(
-                    "Фирменный интерфейс и ранжирование DoogleX поверх DuckDuckGo, Mojeek, Wikipedia, GitHub и подключаемого Google API. Это метапоиск, а не собственный индекс интернета.",
+                    "Фирменный интерфейс и ранжирование DoogleX поверх DuckDuckGo, Mojeek, Wikipedia, GitHub и подключаемого Google API. Это метапоиск, а не собственный индекс интернета. DoogleX — независимый интерфейс и не является продуктом DuckDuckGo.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

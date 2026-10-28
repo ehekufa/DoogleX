@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.util.Base64
 import android.webkit.CookieManager
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
@@ -60,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -81,6 +83,33 @@ fun WebPageScreen(
     onOpenExternal: (String) -> Unit,
 ) {
     val context = LocalContext.current
+    val iconDataUri = remember {
+        context.resources.openRawResource(R.drawable.dooglex_official).use { input ->
+            "data:image/png;base64," + Base64.encodeToString(input.readBytes(), Base64.NO_WRAP)
+        }
+    }
+    val brandPageBackground = MaterialTheme.colorScheme.primaryContainer.toCssHex()
+    val brandPageText = MaterialTheme.colorScheme.onPrimaryContainer.toCssHex()
+    val brandLink = MaterialTheme.colorScheme.primary.toCssHex()
+    val brandFieldBackground = MaterialTheme.colorScheme.surface.toCssHex()
+    val brandFieldText = MaterialTheme.colorScheme.onSurface.toCssHex()
+    val duckDuckGoBrandingScript = remember(
+        iconDataUri,
+        brandPageBackground,
+        brandPageText,
+        brandLink,
+        brandFieldBackground,
+        brandFieldText,
+    ) {
+        DuckDuckGoBranding.script(
+            iconDataUri = iconDataUri,
+            pageBackground = brandPageBackground,
+            pageText = brandPageText,
+            link = brandLink,
+            fieldBackground = brandFieldBackground,
+            fieldText = brandFieldText,
+        )
+    }
     val initialHost = Uri.parse(initialUrl).host
     val firstTab = remember {
         BrowserTab(FIRST_TAB_ID, initialHost ?: "DoogleX", initialUrl)
@@ -102,6 +131,8 @@ fun WebPageScreen(
     val currentSettings = remember { AtomicReference(pageSettings) }
     val appliedSettings = remember { AtomicReference<WebPageSettings?>(null) }
     val defaultUserAgent = remember { AtomicReference("") }
+    val currentBrandingScript = remember { AtomicReference("") }
+    val appliedBrandingScript = remember { AtomicReference("") }
     val shownTab = tabs.firstOrNull { it.id == activeTabId } ?: tabs.first()
 
     fun currentTab(): BrowserTab? = tabs.firstOrNull { it.id == activeTabId }
@@ -393,6 +424,8 @@ fun WebPageScreen(
                 modifier = Modifier.fillMaxSize(),
                 factory = { viewContext ->
                     currentSettings.set(pageSettings)
+                    currentBrandingScript.set(duckDuckGoBrandingScript)
+                    appliedBrandingScript.set("")
                     WebView(viewContext).apply {
                         defaultUserAgent.set(settings.userAgentString)
                         settings.apply {
@@ -485,6 +518,15 @@ fun WebPageScreen(
                                     if (!addressEditing) addressInput = url
                                     currentPageHost.set(Uri.parse(url).host)
                                     updateActiveUrl(url)
+                                    if (isDuckDuckGoUrl(url)) {
+                                        val script = currentBrandingScript.get()
+                                        applyDuckDuckGoBranding(
+                                            browser = view,
+                                            script = script,
+                                            javaScriptEnabled = currentSettings.get().javaScriptEnabled,
+                                        )
+                                        appliedBrandingScript.set(script)
+                                    }
                                 }
                             }
 
@@ -526,6 +568,18 @@ fun WebPageScreen(
                     }
                 },
                 update = { browser ->
+                    currentBrandingScript.set(duckDuckGoBrandingScript)
+                    if (!isLoading &&
+                        isDuckDuckGoUrl(currentUrl) &&
+                        appliedBrandingScript.getAndSet(duckDuckGoBrandingScript) !=
+                        duckDuckGoBrandingScript
+                    ) {
+                        applyDuckDuckGoBranding(
+                            browser = browser,
+                            script = duckDuckGoBrandingScript,
+                            javaScriptEnabled = pageSettings.javaScriptEnabled,
+                        )
+                    }
                     currentSettings.set(pageSettings)
                     val previous = appliedSettings.getAndSet(pageSettings)
                     if (previous != pageSettings) {
@@ -605,6 +659,19 @@ fun WebPageScreen(
     }
 }
 
+private fun applyDuckDuckGoBranding(
+    browser: WebView,
+    script: String,
+    javaScriptEnabled: Boolean,
+) {
+    if (javaScriptEnabled && script.isNotBlank()) {
+        browser.evaluateJavascript(script, null)
+    }
+}
+
+private fun androidx.compose.ui.graphics.Color.toCssHex(): String =
+    String.format("#%06X", toArgb() and 0xFFFFFF)
+
 @Composable
 private fun DuckDuckGoBrandBar() {
     Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)) {
@@ -632,7 +699,7 @@ private fun DuckDuckGoBrandBar() {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "Наше оформление · поиск от DuckDuckGo",
+                    text = "Независимый интерфейс · поиск от DuckDuckGo",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
                     maxLines = 1,
